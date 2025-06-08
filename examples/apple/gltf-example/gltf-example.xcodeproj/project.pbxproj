@@ -31,7 +31,7 @@
 		59EA381F2DE1BC4200A3D97A /* gltf-example.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "gltf-example.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		59EA382D2DE1BC4500A3D97A /* gltf-exampleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "gltf-exampleTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		59EA38372DE1BC4600A3D97A /* gltf-exampleUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "gltf-exampleUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		59EA384A2DE1BCC800A3D97A /* gltf.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = gltf.cpp; path = /Users/rubenleal/Projects/gltf/src/gltf.cpp; sourceTree = "<absolute>"; };
+		59EA384A2DE1BCC800A3D97A /* gltf.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = gltf.cpp; path = ../../../src/gltf.cpp; sourceTree = SOURCE_ROOT; };
 		59EA384C2DE1BCDC00A3D97A /* gltf-example-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "gltf-example-Bridging-Header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
