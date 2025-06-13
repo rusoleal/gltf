@@ -23,10 +23,10 @@ namespace systems::leal::gltf
          */
         uint64_t *source;
 
-        /*Texture(uint64_t *sampler, uint64_t *source) {
+        Texture(uint64_t *sampler, uint64_t *source) {
             this->sampler = sampler;
             this->source = source;
-        }*/
+        }
 
         ~Texture() {
             if (sampler != nullptr) {

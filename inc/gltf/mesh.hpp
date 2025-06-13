@@ -72,6 +72,10 @@ namespace systems::leal::gltf
          */
         std::vector<double> *weights;
 
+        Mesh(const std::vector<Primitive> primitives, std::vector<double> *weights) {
+            this->primitives = primitives;
+            this->weights = weights;
+        }
     };
 
 }

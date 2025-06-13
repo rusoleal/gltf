@@ -125,5 +125,10 @@ namespace systems::leal::gltf
          * with a sequence of output values and defines an interpolation algorithm.
          */
         std::vector<AnimationSampler> samplers;
+
+        Animation(const std::vector<AnimationChannel> &channels, const std::vector<AnimationSampler> &samplers) {
+            this->channels = channels;
+            this->samplers = samplers;
+        }
     };
 }

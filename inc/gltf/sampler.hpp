@@ -49,6 +49,13 @@ namespace systems::leal::gltf
          */
         WrapMode wrapT;
         
+        Sampler(FilterMode *magFilter, FilterMode *minFilter, WrapMode wrapS, WrapMode wrapT) {
+            this->magFilter = magFilter;
+            this->minFilter = minFilter;
+            this->wrapS = wrapS;
+            this->wrapT = wrapT;
+        }
+
         ~Sampler() {
             if (magFilter != nullptr) {
                 delete magFilter;

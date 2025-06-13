@@ -170,5 +170,25 @@ namespace systems::leal::gltf
         /// its normals reversed before the lighting equation is evaluated.
         bool doubleSided;
 
+        Material(
+            PBRMetallicRoughness *pbrMetallicRoughness,
+            NormalTextureInfo *normalTexture,
+            OcclusionTextureInfo *occlusionTexture,
+            TextureInfo *emissiveTexture,
+            Vector3 emissiveFactor,
+            AlphaMode alphaMode,
+            double alphaCutoff,
+            bool doubleSided
+        ) {
+            this->pbrMetallicRoughness = pbrMetallicRoughness;
+            this->normalTexture = normalTexture;
+            this->occlusionTexture = occlusionTexture;
+            this->emissiveTexture = emissiveTexture;
+            this->emissiveFactor = emissiveFactor;
+            this->alphaMode = alphaMode;
+            this->alphaCutoff = alphaCutoff;
+            this->doubleSided = doubleSided;
+        }
+
     };
 }
