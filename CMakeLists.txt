@@ -9,5 +9,5 @@ include_directories(inc)
 message(STATUS ${PROJECT_NAME})
 
 add_library(${PROJECT_NAME} SHARED
-    gltf.cpp
+    src/gltf.cpp
 )
