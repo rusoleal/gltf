@@ -105,9 +105,9 @@ FilterMode *filterModeFromGLTF(nlohmann::json &node) {
     return nullptr;
 }
 
-std::vector<uint64_t> *uintListFromGLTF(nlohmann::json &node) {
+std::shared_ptr<std::vector<uint64_t>> uintListFromGLTF(nlohmann::json &node) {
     if (node.is_array()) {
-        auto toReturn = new std::vector<uint64_t>();
+        auto toReturn = std::make_shared<std::vector<uint64_t>>();
         toReturn->reserve(node.size());
         for (uint64_t a=0; a<node.size(); a++) {
             toReturn->emplace_back(node[a]);
