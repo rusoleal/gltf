@@ -144,7 +144,7 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data, onLoadDataEvent on
 
             uint64_t byteLength = buffer["byteLength"];
 
-            buffers->emplace_back(uri, byteLength);
+            buffers->emplace_back((Buffer){uri, byteLength});
 
         }
     }
