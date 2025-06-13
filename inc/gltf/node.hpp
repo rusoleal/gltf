@@ -76,5 +76,27 @@ namespace systems::leal::gltf
          * defined, mesh MUST also be defined.
          */
         std::vector<double> weights;
+
+        Node(
+            uint64_t *camera,
+            std::vector<uint64_t> *children,
+            uint64_t *skin,
+            Matrix4 matrix,
+            uint64_t *mesh,
+            Quaternion rotation,
+            Vector3 scale,
+            Vector3 translation,
+            std::vector<double> weights
+        ) {
+            this->camera =  camera;
+            this->children = children;
+            this->skin =  skin;
+            this->matrix = matrix;
+            this->mesh =  mesh;
+            this->rotation = rotation;
+            this->scale = scale;
+            this->translation=  translation;
+            this->weights = weights;
+        }
     };
 }

@@ -13,6 +13,10 @@ namespace systems::leal::gltf
         /**
          * The indices of each root node.
          */
-        std::vector<uint64_t> *nodes;
+        std::shared_ptr<std::vector<uint64_t>> nodes;
+
+        Scene(std::shared_ptr<std::vector<uint64_t>> nodes) {
+            this->nodes = nodes;
+        }
     };
 }

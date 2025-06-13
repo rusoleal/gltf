@@ -23,7 +23,13 @@ namespace systems::leal::gltf {
         /**
          * Indices of skeleton nodes, used as joints in this skin.
          */
-        std::vector<uint64_t> joints;
+        std::shared_ptr<std::vector<uint64_t>> joints;
+
+        Skin(uint64_t *inverseBindMatrices, uint64_t *skeleton, std::shared_ptr<std::vector<uint64_t>> joints) {
+            this->inverseBindMatrices = inverseBindMatrices;
+            this->skeleton = skeleton;
+            this->joints = joints;
+        }
 
     };
 }

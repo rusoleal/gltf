@@ -28,11 +28,11 @@ namespace systems::leal::gltf
          */
         uint64_t *bufferView;
 
-        /*Image(std::string *uri, std::string *mimeType, uint64_t *bufferView) {
+        Image(std::string *uri, std::string *mimeType, uint64_t *bufferView) {
             this->uri = uri;
             this->mimeType = mimeType;
             this->bufferView = bufferView;
-        }*/
+        }
 
         ~Image() {
             if (uri != nullptr) {

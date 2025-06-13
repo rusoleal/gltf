@@ -108,7 +108,7 @@ namespace systems::leal::gltf
 
         // TODO sparse
 
-        /*Accessor(
+        Accessor(
             uint64_t *bufferView, 
             uint64_t byteOffset, 
             ComponentType componentType, 
@@ -122,7 +122,7 @@ namespace systems::leal::gltf
                 this->normalized = normalized;
                 this->count = count;
                 this->type = type;
-        }*/
+        }
 
         ~Accessor() {
             if (bufferView != nullptr) {
