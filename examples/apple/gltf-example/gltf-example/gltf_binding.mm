@@ -15,7 +15,7 @@ using namespace systems::leal::gltf;
 
 @interface gltf_binding()
 
-@property systems::leal::gltf::GLTF *native;
+@property std::shared_ptr<systems::leal::gltf::GLTF> native;
 
 @end
 
@@ -25,12 +25,12 @@ using namespace systems::leal::gltf;
 {
     if (self=[super init]) {
         
-        self.native = new GLTF(GLTF::loadGLTF(data.UTF8String, [](const std::string &uri) {
+        self.native = GLTF::loadGLTF(data.UTF8String, [](const std::string &uri) {
             std::future<std::vector<uint8_t>> toReturn = std::async(std::launch::async, []() {
                 return std::vector<uint8_t>();
             });
             return toReturn;
-        } ));
+        } );
     }
     return self;
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <vector>
 #include <array>
 #include <future>
@@ -48,6 +49,11 @@ namespace systems::leal::gltf {
         // Ratified Khronos extensions.
         std::vector<KHRLightPunctual> khrLightsPunctual;
 
+        ~GLTF();
+
+        static std::shared_ptr<GLTF> loadGLTF(const std::string &data, onLoadDataEvent onLoadData );
+
+    private:
         GLTF(
             const std::vector<Buffer> &buffers,
             const std::vector<BufferView> &bufferViews,
@@ -65,6 +71,5 @@ namespace systems::leal::gltf {
             const std::vector<KHRLightPunctual> khrLightsPunctual
         );
 
-        static GLTF loadGLTF(const std::string &data, onLoadDataEvent onLoadData );
     };
 }

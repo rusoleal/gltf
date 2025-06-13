@@ -76,6 +76,7 @@ GLTF::GLTF(
     const std::vector<Skin> &skins,
     const std::vector<KHRLightPunctual> khrLightsPunctual
 ) {
+    std::printf("GLTF::GLTF\n");
     this->buffers = buffers;
     this->bufferViews = bufferViews;
     this->accessors = accessors;
@@ -91,6 +92,11 @@ GLTF::GLTF(
     this->skins = skins;
     this->khrLightsPunctual = khrLightsPunctual;
 }
+
+GLTF::~GLTF() {
+    std::printf("GLTF::~GLTF\n");
+}
+
 
 FilterMode *filterModeFromGLTF(nlohmann::json &node) {
     if (node.is_number()) {
@@ -111,7 +117,7 @@ std::vector<uint64_t> *uintListFromGLTF(nlohmann::json &node) {
     return nullptr;
 }
 
-GLTF GLTF::loadGLTF(const std::string &data, onLoadDataEvent onLoadData) {
+std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data, onLoadDataEvent onLoadData) {
 
     auto gltfDef = json::parse(data);
 
@@ -367,9 +373,9 @@ GLTF GLTF::loadGLTF(const std::string &data, onLoadDataEvent onLoadData) {
     }
 
     // KHR_lights_punctual
-    std::vector<KHRLightPunctual> khrLightsPunctual;
+    std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual;
     
-    return GLTF(
+    return std::shared_ptr<GLTF>(new GLTF(
         buffers,
         bufferViews,
         accessors,
@@ -384,5 +390,5 @@ GLTF GLTF::loadGLTF(const std::string &data, onLoadDataEvent onLoadData) {
         animations,
         skins,
         khrLightsPunctual
-    );
+    ));
 }

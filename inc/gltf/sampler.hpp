@@ -48,7 +48,7 @@ namespace systems::leal::gltf
          * T (V) wrapping mode.
          */
         WrapMode wrapT;
-
+        
         ~Sampler() {
             if (magFilter != nullptr) {
                 delete magFilter;
