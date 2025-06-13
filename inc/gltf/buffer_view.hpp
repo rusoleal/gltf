@@ -46,13 +46,13 @@ namespace systems::leal::gltf
         BufferViewTarget* target;
 
 
-        /*BufferView(uint64_t buffer, uint64_t byteOffset, uint64_t byteLength, uint64_t *byteStride, BufferViewTarget* target) {
+        BufferView(uint64_t buffer, uint64_t byteOffset, uint64_t byteLength, uint64_t *byteStride, BufferViewTarget* target) {
             this->buffer = buffer;
             this->byteOffset = byteOffset;
             this->byteLength = byteLength;
             this->byteStride = byteStride;
             this->target = target;
-        }*/
+        }
 
         ~BufferView() {
             if (byteStride != nullptr) {

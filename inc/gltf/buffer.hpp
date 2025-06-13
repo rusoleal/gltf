@@ -19,10 +19,10 @@ namespace systems::leal::gltf {
          */
         uint64_t byteLength;
 
-        /*Buffer(std::string *uri, uint64_t byteLength) {
+        Buffer(std::string *uri, uint64_t byteLength) {
             this->uri = uri;
             this->byteLength = byteLength;
-        }*/
+        }
 
         ~Buffer() {
             if (uri != nullptr) {
