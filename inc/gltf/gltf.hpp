@@ -32,43 +32,45 @@ namespace systems::leal::gltf {
 
         onLoadDataEvent onLoadData;
 
-        std::vector<Buffer> buffers;
-        std::vector<BufferView> bufferViews;
-        std::vector<Accessor> accessors;
-        std::vector<Camera> cameras;
-        std::vector<Image> images;
-        std::vector<Texture> textures;
-        std::vector<Scene> scenes;
-        std::vector<Node> nodes;
-        std::vector<Sampler> samplers;
-        std::vector<Mesh> meshes;
-        std::vector<Material> materials;
-        std::vector<Animation> animations;
-        std::vector<Skin> skins;
+        std::shared_ptr<std::vector<Buffer>> buffers;
+        std::shared_ptr<std::vector<BufferView>> bufferViews;
+        std::shared_ptr<std::vector<Accessor>> accessors;
+        std::shared_ptr<std::vector<Camera>> cameras;
+        std::shared_ptr<std::vector<Image>> images;
+        std::shared_ptr<std::vector<Texture>> textures;
+        std::shared_ptr<std::vector<Scene>> scenes;
+        std::shared_ptr<std::vector<Node>> nodes;
+        std::shared_ptr<std::vector<Sampler>> samplers;
+        std::shared_ptr<std::vector<Mesh>> meshes;
+        std::shared_ptr<std::vector<Material>> materials;
+        std::shared_ptr<std::vector<Animation>> animations;
+        std::shared_ptr<std::vector<Skin>> skins;
 
         // Ratified Khronos extensions.
-        std::vector<KHRLightPunctual> khrLightsPunctual;
+        std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual;
 
         ~GLTF();
 
+        std::string toString();
+
         static std::shared_ptr<GLTF> loadGLTF(const std::string &data, onLoadDataEvent onLoadData );
 
-    private:
+    private:        
         GLTF(
-            const std::vector<Buffer> &buffers,
-            const std::vector<BufferView> &bufferViews,
-            const std::vector<Accessor> &accessors,
-            const std::vector<Camera> &cameras,
-            const std::vector<Image> &images,
-            const std::vector<Texture> &textures,
-            const std::vector<Scene> &scenes,
-            const std::vector<Node> &nodes,
-            const std::vector<Sampler> &samplers,
-            const std::vector<Mesh> &meshes,
-            const std::vector<Material> &materials,
-            const std::vector<Animation> &animations,
-            const std::vector<Skin> &skins,
-            const std::vector<KHRLightPunctual> khrLightsPunctual
+            std::shared_ptr<std::vector<Buffer>> buffers,
+            std::shared_ptr<std::vector<BufferView>> bufferViews,
+            std::shared_ptr<std::vector<Accessor>> accessors,
+            std::shared_ptr<std::vector<Camera>> cameras,
+            std::shared_ptr<std::vector<Image>> images,
+            std::shared_ptr<std::vector<Texture>> textures,
+            std::shared_ptr<std::vector<Scene>> scenes,
+            std::shared_ptr<std::vector<Node>> nodes,
+            std::shared_ptr<std::vector<Sampler>> samplers,
+            std::shared_ptr<std::vector<Mesh>> meshes,
+            std::shared_ptr<std::vector<Material>> materials,
+            std::shared_ptr<std::vector<Animation>> animations,
+            std::shared_ptr<std::vector<Skin>> skins,
+            std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual
         );
 
     };

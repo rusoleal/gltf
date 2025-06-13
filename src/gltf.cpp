@@ -61,20 +61,20 @@ const std::array<char const *, 1> GLTF::implementedExtensions = {
 };
 
 GLTF::GLTF(
-    const std::vector<Buffer> &buffers,
-    const std::vector<BufferView> &bufferViews,
-    const std::vector<Accessor> &accessors,
-    const std::vector<Camera> &cameras,
-    const std::vector<Image> &images,
-    const std::vector<Texture> &textures,
-    const std::vector<Scene> &scenes,
-    const std::vector<Node> &nodes,
-    const std::vector<Sampler> &samplers,
-    const std::vector<Mesh> &meshes,
-    const std::vector<Material> &materials,
-    const std::vector<Animation> &animations,
-    const std::vector<Skin> &skins,
-    const std::vector<KHRLightPunctual> khrLightsPunctual
+    std::shared_ptr<std::vector<Buffer>> buffers,
+    std::shared_ptr<std::vector<BufferView>> bufferViews,
+    std::shared_ptr<std::vector<Accessor>> accessors,
+    std::shared_ptr<std::vector<Camera>> cameras,
+    std::shared_ptr<std::vector<Image>> images,
+    std::shared_ptr<std::vector<Texture>> textures,
+    std::shared_ptr<std::vector<Scene>> scenes,
+    std::shared_ptr<std::vector<Node>> nodes,
+    std::shared_ptr<std::vector<Sampler>> samplers,
+    std::shared_ptr<std::vector<Mesh>> meshes,
+    std::shared_ptr<std::vector<Material>> materials,
+    std::shared_ptr<std::vector<Animation>> animations,
+    std::shared_ptr<std::vector<Skin>> skins,
+    std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual
 ) {
     std::printf("GLTF::GLTF\n");
     this->buffers = buffers;
@@ -129,11 +129,11 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data, onLoadDataEvent on
     
     
     // Buffers
-    std::vector<Buffer> buffers;
+    auto buffers = std::make_shared<std::vector<Buffer>>();
     auto buffersDef = gltfDef["buffers"];
     if (buffersDef.is_array()) {
         
-        buffers.reserve(buffersDef.size());
+        buffers->reserve(buffersDef.size());
         for (uint32_t a=0; a<buffersDef.size(); a++ ) {
             auto buffer = buffersDef[a];
             
@@ -144,17 +144,17 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data, onLoadDataEvent on
 
             uint64_t byteLength = buffer["byteLength"];
 
-            buffers.emplace_back(uri, byteLength);
+            buffers->emplace_back(uri, byteLength);
 
         }
     }
 
     // BufferViews
-    std::vector<BufferView> bufferViews;
+    auto bufferViews = std::make_shared<std::vector<BufferView>>();
     auto bufferViewsDef = gltfDef["bufferViews"];
     if (bufferViewsDef.is_array()) {
         
-        bufferViews.reserve(bufferViewsDef.size());
+        bufferViews->reserve(bufferViewsDef.size());
         for (uint32_t a=0; a<bufferViewsDef.size(); a++ ) {
             auto bufferView = bufferViewsDef[a];
             
@@ -169,16 +169,16 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data, onLoadDataEvent on
             if (bufferView["target"].is_number()) {
                 target = new BufferViewTarget(bufferView["target"]);
             }
-            bufferViews.emplace_back(buffer, byteOffset, byteLength, byteStride, target);
+            bufferViews->emplace_back(buffer, byteOffset, byteLength, byteStride, target);
         }
     }
 
     // Accessors
-    std::vector<Accessor> accessors;
+    auto accessors = std::make_shared<std::vector<Accessor>>();
     auto accessorsDef = gltfDef["accessors"];
     if (accessorsDef.is_array()) {
         
-        accessors.reserve(accessorsDef.size());
+        accessors->reserve(accessorsDef.size());
         for (uint32_t a=0; a<accessorsDef.size(); a++ ) {
             auto accessor = accessorsDef[a];
             
@@ -210,15 +210,15 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data, onLoadDataEvent on
                 throw std::invalid_argument("Unsupported accessor type");
             }
 
-            accessors.emplace_back(bufferView, byteOffset, componentType, normalized, count, t);
+            accessors->emplace_back(bufferView, byteOffset, componentType, normalized, count, t);
         }
     }
 
     // Cameras
-    std::vector<Camera> cameras;
+    auto cameras = std::make_shared<std::vector<Camera>>();
     auto camerasDef = gltfDef["cameras"];
     if (camerasDef.is_array()) {
-        cameras.reserve(camerasDef.size());
+        cameras->reserve(camerasDef.size());
         for (uint32_t a=0; a<camerasDef.size(); a++) {
             auto camera = camerasDef[a];
             std::string type = camera["type"];
@@ -234,14 +234,14 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data, onLoadDataEvent on
                     aspectRatio = new double(camera["perspective"]["zfar"]);
                 }
                 double znear = camera["perspective"]["znear"];
-                cameras.emplace_back(PerspectiveCamera(aspectRatio, yfov, zfar, znear));
+                cameras->emplace_back(PerspectiveCamera(aspectRatio, yfov, zfar, znear));
 
             } else if (type == "orthographic") {
                 double xmag = camera["orthographic"]["xmag"];
                 double ymag = camera["orthographic"]["ymag"];
                 double zfar = camera["orthographic"]["zfar"];
                 double znear = camera["orthographic"]["znear"];
-                cameras.emplace_back(OrthographicCamera(xmag, ymag, zfar, znear));
+                cameras->emplace_back(OrthographicCamera(xmag, ymag, zfar, znear));
 
             } else {
                 throw std::invalid_argument("Unsupported camera type");
@@ -250,10 +250,10 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data, onLoadDataEvent on
     }
 
     // Images
-    std::vector<Image> images;
+    auto images = std::make_shared<std::vector<Image>>();
     auto imagesDef = gltfDef["images"];
     if (imagesDef.is_array()) {
-        images.reserve(imagesDef.size());
+        images->reserve(imagesDef.size());
         for (uint32_t a=0; a<imagesDef.size(); a++) {
             auto image = imagesDef[a];
 
@@ -269,16 +269,16 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data, onLoadDataEvent on
             if (image["bufferView"].is_number()) {
                 bufferView = new uint64_t(image["bufferView"]);
             }
-            images.emplace_back(uri, mimeType, bufferView);
+            images->emplace_back(uri, mimeType, bufferView);
 
         }
     }
 
     // Textures
-    std::vector<Texture> textures;
+    auto textures = std::make_shared<std::vector<Texture>>();
     auto texturesDef = gltfDef["textures"];
     if (texturesDef.is_array()) {
-        textures.reserve(texturesDef.size());
+        textures->reserve(texturesDef.size());
         for (uint32_t a=0; a<texturesDef.size(); a++) {
             auto texture = texturesDef[a];
 
@@ -290,15 +290,15 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data, onLoadDataEvent on
             if (texture["source"].is_number()) {
                 source = new uint64_t(texture["source"]);
             }
-            textures.emplace_back(sampler, source);
+            textures->emplace_back(sampler, source);
         }
     }
 
     // Samplers
-    std::vector<Sampler> samplers;
+    auto samplers = std::make_shared<std::vector<Sampler>>();
     auto samplersDef = gltfDef["samplers"];
     if (samplersDef.is_array()) {
-        samplers.reserve(samplersDef.size());
+        samplers->reserve(samplersDef.size());
         for (uint32_t a=0; a<samplersDef.size(); a++) {
             auto sampler = samplersDef[a];
 
@@ -307,73 +307,73 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data, onLoadDataEvent on
             WrapMode wrapS = (WrapMode)sampler.value("wrapS",uint64_t(10497));
             WrapMode wrapT = (WrapMode)sampler.value("wrapT",uint64_t(10497));
 
-            samplers.emplace_back(magFilter, minFilter, wrapS, wrapT);
+            samplers->emplace_back(magFilter, minFilter, wrapS, wrapT);
         }
     }
 
     // Materials
-    std::vector<Material> materials;
+    auto materials = std::make_shared<std::vector<Material>>();
     auto materialsDef = gltfDef["materials"];
     if (materialsDef.is_array()) {
-        materials.reserve(materialsDef.size());
+        materials->reserve(materialsDef.size());
         for (uint32_t a=0; a<materialsDef.size(); a++) {
             auto material = materialsDef[a];
         }
     }
 
     // Meshes
-    std::vector<Mesh> meshes;
+    auto meshes = std::make_shared<std::vector<Mesh>>();
     auto meshesDef = gltfDef["meshes"];
     if (meshesDef.is_array()) {
-        meshes.reserve(meshesDef.size());
+        meshes->reserve(meshesDef.size());
         for (uint32_t a=0; a<meshesDef.size(); a++) {
             auto mesh = meshesDef[a];
         }
     }
 
     // Nodes
-    std::vector<Node> nodes;
+    auto nodes = std::make_shared<std::vector<Node>>();
     auto nodesDef = gltfDef["nodes"];
     if (nodesDef.is_array()) {
-        nodes.reserve(nodesDef.size());
+        nodes->reserve(nodesDef.size());
         for (uint32_t a=0; a<nodesDef.size(); a++) {
             auto node = nodesDef[a];
         }
     }
 
     // Scenes
-    std::vector<Scene> scenes;
+    auto scenes = std::make_shared<std::vector<Scene>>();
     auto scenesDef = gltfDef["scenes"];
     if (scenesDef.is_array()) {
-        scenes.reserve(scenesDef.size());
+        scenes->reserve(scenesDef.size());
         for (uint32_t a=0; a<scenesDef.size(); a++) {
             auto scene = scenesDef[a];
-            scenes.emplace_back(uintListFromGLTF(scene["nodes"]));
+            scenes->emplace_back(uintListFromGLTF(scene["nodes"]));
         }
     }
 
     // Skins
-    std::vector<Skin> skins;
+    auto skins = std::make_shared<std::vector<Skin>>();
     auto skinsDef = gltfDef["skins"];
     if (skinsDef.is_array()) {
-        skins.reserve(skinsDef.size());
+        skins->reserve(skinsDef.size());
         for (uint32_t a=0; a<skinsDef.size(); a++) {
             auto skin = skinsDef[a];
         }
     }
 
     // Animations
-    std::vector<Animation> animations;
+    auto animations = std::make_shared<std::vector<Animation>>();
     auto animationsDef = gltfDef["animations"];
     if (animationsDef.is_array()) {
-        animations.reserve(animationsDef.size());
+        animations->reserve(animationsDef.size());
         for (uint32_t a=0; a<animationsDef.size(); a++) {
             auto animation = animationsDef[a];
         }
     }
 
     // KHR_lights_punctual
-    std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual;
+    auto khrLightsPunctual = std::make_shared<std::vector<KHRLightPunctual>>();
     
     return std::shared_ptr<GLTF>(new GLTF(
         buffers,
@@ -392,3 +392,8 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data, onLoadDataEvent on
         khrLightsPunctual
     ));
 }
+
+std::string GLTF::toString() {
+    return "";
+}
+
