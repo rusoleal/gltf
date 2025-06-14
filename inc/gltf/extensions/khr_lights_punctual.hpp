@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector_math/vector3.hpp>
+
 namespace systems::leal::gltf
 {
 
@@ -56,7 +58,7 @@ namespace systems::leal::gltf
     struct KHRLightPunctual
     {
 
-        Vector3 color;
+        systems::leal::vector_math::Vector3 color;
 
         double intensity;
 

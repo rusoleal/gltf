@@ -5,8 +5,6 @@
 #include <vector_math/quaternion.hpp>
 #include <vector_math/matrix4.hpp>
 
-using namespace systems::leal::vector_math;
-
 namespace systems::leal::gltf
 {
 
@@ -46,7 +44,7 @@ namespace systems::leal::gltf
         /**
          * A floating-point 4x4 transformation matrix stored in column-major order.
          */
-        Matrix4 matrix;
+        systems::leal::vector_math::Matrix4 matrix;
 
         /**
          * The index of the [Mesh] in this node.
@@ -57,18 +55,18 @@ namespace systems::leal::gltf
          * The node’s unit quaternion rotation in the order (x, y, z, w), where w is
          * the scalar.
          */
-        Quaternion rotation;
+        systems::leal::vector_math::Quaternion rotation;
 
         /**
          * The node’s non-uniform scale, given as the scaling factors along the x, y,
          * and z axes.
          */
-        Vector3 scale;
+        systems::leal::vector_math::Vector3 scale;
 
         /**
          * The node’s translation along the x, y, and z axes.
          */
-        Vector3 translation;
+        systems::leal::vector_math::Vector3 translation;
 
         /**
          * The weights of the instantiated morph target. The number of array elements
@@ -81,11 +79,11 @@ namespace systems::leal::gltf
             uint64_t *camera,
             std::vector<uint64_t> *children,
             uint64_t *skin,
-            Matrix4 matrix,
+            systems::leal::vector_math::Matrix4 matrix,
             uint64_t *mesh,
-            Quaternion rotation,
-            Vector3 scale,
-            Vector3 translation,
+            systems::leal::vector_math::Quaternion rotation,
+            systems::leal::vector_math::Vector3 scale,
+            systems::leal::vector_math::Vector3 translation,
             std::vector<double> weights
         ) {
             this->camera =  camera;

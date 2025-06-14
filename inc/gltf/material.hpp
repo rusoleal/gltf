@@ -51,7 +51,7 @@ namespace systems::leal::gltf
     struct PBRMetallicRoughness {
         /// The factors for the base color of the material. This value defines linear
         /// multipliers for the sampled texels of the base color texture.
-        Vector4 baseColorFactor;
+        systems::leal::vector_math::Vector4 baseColorFactor;
 
         /// The base color texture. The first three components (RGB) MUST be encoded
         /// with the sRGB transfer function. They specify the base color of the
@@ -150,7 +150,7 @@ namespace systems::leal::gltf
 
         /// The factors for the emissive color of the material. This value defines
         /// linear multipliers for the sampled texels of the emissive texture.
-        Vector3 emissiveFactor;
+        systems::leal::vector_math::Vector3 emissiveFactor;
 
         /// The material’s alpha rendering mode enumeration specifying the
         /// interpretation of the alpha value of the base color.
@@ -175,7 +175,7 @@ namespace systems::leal::gltf
             NormalTextureInfo *normalTexture,
             OcclusionTextureInfo *occlusionTexture,
             TextureInfo *emissiveTexture,
-            Vector3 emissiveFactor,
+            systems::leal::vector_math::Vector3 emissiveFactor,
             AlphaMode alphaMode,
             double alphaCutoff,
             bool doubleSided
