@@ -8,6 +8,10 @@ include_directories(inc)
 
 message(STATUS ${PROJECT_NAME})
 
+target_include_directories (gltf
+    PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>"
+)
+
 add_library(${PROJECT_NAME} SHARED
     src/gltf.cpp
 )
