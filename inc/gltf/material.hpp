@@ -84,6 +84,20 @@ namespace systems::leal::gltf
         /// in G and B components.
         std::shared_ptr<TextureInfo> metallicRoughnessTexture;
 
+        PBRMetallicRoughness(
+            const systems::leal::vector_math::Vector4<GLTF_REAL_NUMBER_TYPE> &baseColorFactor,
+            std::shared_ptr<TextureInfo> baseColorTexture,
+            GLTF_REAL_NUMBER_TYPE metallicFactor,
+            GLTF_REAL_NUMBER_TYPE roughnessFactor,
+            std::shared_ptr<TextureInfo> metallicRoughnessTexture
+        ) {
+            this->baseColorFactor = baseColorFactor;
+            this->baseColorTexture = baseColorTexture;
+            this->metallicFactor = metallicFactor;
+            this->roughnessFactor = roughnessFactor;
+            this->metallicRoughnessTexture = metallicRoughnessTexture;
+        }
+
     };
 
     /// The tangent space normal texture.
