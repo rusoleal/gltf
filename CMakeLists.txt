@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.22.1)
 
-project(gltf VERSION 0.0.10)
+project(gltf VERSION 0.0.11)
 
-configure_file(gltf_config.h.in gltf_config.h)
+configure_file(src/gltf_config.h.in src/gltf_config.h)
 
 set(CMAKE_CXX_STANDARD 17)
 
