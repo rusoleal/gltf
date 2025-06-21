@@ -37,12 +37,12 @@ namespace systems::leal::gltf
          * undefined, the primitive defines non-indexed geometry. When defined, the
          * [Accessor] MUST have SCALAR type and an unsigned integer component type.
          */
-        uint64_t indices;
+        int64_t indices;
 
         /**
          * The index of the [Material] to apply to this primitive when rendering.
          */
-        uint64_t material;
+        int64_t material;
 
         /**
          * The topology type of primitives to render.

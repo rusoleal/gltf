@@ -1,6 +1,7 @@
 #include <exception>
 #include <sstream>
 #include <gltf/gltf.hpp>
+#include "gltf_config.h"
 #include <vector_math/vector2.hpp>
 #include <vector_math/vector3.hpp>
 #include <vector_math/vector4.hpp>
@@ -8,6 +9,7 @@
 #include <vector_math/matrix3.hpp>
 #include <vector_math/matrix4.hpp>
 #include "json.hpp"
+#include "base64.h"
 
 //#define STB_IMAGE_IMPLEMENTATION
 //#include "stb_image.h"
@@ -30,6 +32,9 @@ void realListFromGLTF(std::vector<GLTF_REAL_NUMBER_TYPE> &output, const nlohmann
 void intListFromGLTF(std::vector<uint64_t> &output, const nlohmann::json &data);
 std::shared_ptr<TextureInfo> textureInfoFromGLTF(const nlohmann::json &data);
 AlphaMode alphaModeFromGLTF(const nlohmann::json &data);
+
+bool startsWith(const std::string &str, const std::string &preffix);
+bool endsWith(const std::string &str, const std::string &suffix);
 
 /*
 // no inline, required by [replacement.functions]/3
@@ -177,8 +182,32 @@ std::shared_ptr<GLTF> GLTF::loadGLB(uint8_t *data, uint64_t size) {
     // chunk 0
     auto chunk0Length = header[3];
     auto chunk0Type = header[4];
+    if (chunk0Type != CHUNK_TYPE_JSON) {
+        throw std::invalid_argument("GLB chunk0 must be of type JSON");
+    }
     auto chunk0 = std::string((char *)&header[5], chunk0Length);
     auto toReturn = loadGLTF(chunk0);
+
+    // The start and the end of each chunk MUST be aligned to a 4-byte boundary.
+    if (chunk0Length % 4 != 0) {
+        chunk0Length += 4 - (chunk0Length%4);
+    }
+
+    if (size > chunk0Length+20) {
+        auto chunk1Address = (uint32_t *)(((uint8_t *)&header[5]) + chunk0Length);
+        auto chunk1Length = chunk1Address[0];
+        auto chunk1Type = chunk1Address[1];
+        if (chunk1Type == CHUNK_TYPE_BIN && toReturn->buffers->size() > 0) {
+            auto &buffer0 = (*toReturn->buffers)[0];
+            if (buffer0.byteLength != chunk1Length) {
+                throw std::invalid_argument("GLB chunk1 incorrect length");
+            }
+            buffer0.data.resize(chunk1Length);
+            memcpy(&(buffer0.data[0]), &(chunk1Address[2]), chunk1Length);
+        }
+    }
+
+
     return toReturn;
 }
 
@@ -217,14 +246,26 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data) {
         for (uint32_t a=0; a<buffersDef.size(); a++ ) {
             auto buffer = buffersDef[a];
             
-            std::string uri = "";
-            if (buffer["uri"].is_string()) {
-                uri = buffer["uri"];
-            }
-
             uint64_t byteLength = buffer["byteLength"];
 
-            buffers->emplace_back(uri, byteLength);
+            std::vector<uint8_t> data = {};
+
+            std::string uri = buffer.value("uri","");
+            if (startsWith(uri,"data:")) {
+                //printf("%s",uri.c_str());
+                auto parts = split(uri, ";base64,");
+                if (parts.size()>1) {
+                    auto &lastPart = parts[parts.size()-1];
+                    auto decoded = base64_decode(lastPart);
+                    data = std::vector<uint8_t>(decoded.begin(), decoded.end());
+                    uri = "";
+                    if (data.size() != byteLength) {
+                        throw std::invalid_argument("Buffer[" + std::to_string(a) + "] uri payload length error.");
+                    }
+                }
+            }
+
+            buffers->emplace_back(uri, byteLength, data);
 
         }
     }
@@ -337,19 +378,29 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data) {
         for (uint32_t a=0; a<imagesDef.size(); a++) {
             auto image = imagesDef[a];
 
-            std::string uri = "";
-            if (image["uri"].is_string()) {
-                uri = image["uri"];
+            std::string mimeType = image.value("mime","");
+
+            int64_t bufferView = image.value("bufferView",-1);
+
+            std::vector<uint8_t> data = {};
+
+            std::string uri = image.value("uri","");
+            if (startsWith(uri,"data:")) {
+                auto parts = split(uri, ";base64,");
+                if (parts.size()>1) {
+                    auto &lastPart = parts[parts.size()-1];
+                    auto decoded = base64_decode(lastPart);
+                    data = std::vector<uint8_t>(decoded.begin(), decoded.end());
+                    uri = "";
+
+                    auto mimeparts = split(parts[0], ":");
+                    if (mimeparts.size() > 1) {
+                        mimeType = mimeparts[1];
+                    }
+                }
             }
-            std::string mimeType = "";
-            if (image["mimeType"].is_string()) {
-                uri = image["mimeType"];
-            }
-            uint64_t bufferView = -1;
-            if (image["bufferView"].is_number()) {
-                bufferView = image["bufferView"];
-            }
-            images->emplace_back(uri, mimeType, bufferView);
+
+            images->emplace_back(uri, mimeType, bufferView, data);
 
         }
     }
@@ -485,9 +536,9 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data) {
                     attributes[element.key()] = element.value();
                 }
 
-                uint64_t indices = primitiveDef.value("indices",-1);
+                int64_t indices = primitiveDef.value("indices",-1);
 
-                uint64_t material = primitiveDef.value("material",-1);
+                int64_t material = primitiveDef.value("material",-1);
 
                 PrimitiveMode mode = (PrimitiveMode)primitiveDef.value("mode",4);
 
@@ -511,16 +562,16 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data) {
         for (uint32_t a=0; a<nodesDef.size(); a++) {
             auto nodeDef = nodesDef[a];
 
-            uint64_t camera = nodeDef.value("camera",-1);
+            int64_t camera = nodeDef.value("camera",-1);
 
             std::vector<uint64_t> children;
             intListFromGLTF(children, nodeDef["children"]);
 
-            uint64_t skin = nodeDef.value("skin",-1);
+            int64_t skin = nodeDef.value("skin",-1);
 
             auto matrix = mat4FromGLTF(nodeDef["matrix"], systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE>::identity());
 
-            uint64_t mesh = nodeDef.value("mesh",-1);
+            int64_t mesh = nodeDef.value("mesh",-1);
 
             auto rotation = quatFromGLTF(nodeDef["rotation"], systems::leal::vector_math::Quaternion<GLTF_REAL_NUMBER_TYPE>(0.0, 0.0, 0.0, 1.0));
 
@@ -637,6 +688,17 @@ std::vector<std::string> split(const std::string &s, const std::string &delimite
         toReturn.push_back(copy);
 
     return toReturn;
+}
+
+bool startsWith(const std::string &str, const std::string &preffix) {
+    return str.rfind(preffix,0) == 0;
+}
+
+bool endsWith(const std::string &str, const std::string &suffix) {
+    if (str.length() < suffix.length()) {
+        return false;
+    }
+    return str.compare(str.length() - suffix.length(), suffix.length(), suffix) == 0;
 }
 
 systems::leal::vector_math::Vector2<GLTF_REAL_NUMBER_TYPE> *vec2FromGLTF(const nlohmann::json &data) {
@@ -799,4 +861,8 @@ AlphaMode alphaModeFromGLTF(const nlohmann::json &data) {
     if (value == "MASK") return AlphaMode::mask;
     if (value == "BLEND") return AlphaMode::blend;
     return AlphaMode::opaque;
+}
+
+std::string GLTF::getVersion() {
+    return std::to_string(gltf_VERSION_MAJOR) + "." + std::to_string(gltf_VERSION_MINOR) + "." + std::to_string(gltf_VERSION_PATCH);
 }

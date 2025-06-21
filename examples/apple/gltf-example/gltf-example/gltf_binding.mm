@@ -70,6 +70,11 @@ using namespace systems::leal::gltf;
                               encoding:NSUTF8StringEncoding];
 }
 
++(NSString *) getVersion
+{
+    return [NSString stringWithCString:systems::leal::gltf::GLTF::getVersion().c_str() encoding:NSUTF8StringEncoding];
+}
+
 @end
 
 NS_ASSUME_NONNULL_END

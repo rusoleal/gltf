@@ -65,6 +65,7 @@ namespace systems::leal::gltf {
 
         static std::shared_ptr<GLTF> loadGLTF(const std::string &data);
         static std::shared_ptr<GLTF> loadGLB(uint8_t *data, uint64_t size);
+        static std::string getVersion();
 
     private:        
         GLTF(

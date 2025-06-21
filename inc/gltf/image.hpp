@@ -26,12 +26,20 @@ namespace systems::leal::gltf
          * The index of the bufferView that contains the image. This field MUST NOT
          * be defined when uri is defined.
          */
-        uint64_t bufferView;
+        int64_t bufferView;
 
-        Image(const std::string &uri, const std::string &mimeType, uint64_t bufferView) {
+        /**
+         * Embedded data:uri or glb format.
+         * 
+         * Only available for embedded content. Length must fit [byteLength] property.
+         */
+        std::vector<uint8_t> data;
+
+        Image(const std::string &uri, const std::string &mimeType, int64_t bufferView, const std::vector<uint8_t> &data) {
             this->uri = uri;
             this->mimeType = mimeType;
             this->bufferView = bufferView;
+            this->data = data;
         }
 
         /*~Image() {

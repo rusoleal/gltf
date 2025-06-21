@@ -24,7 +24,7 @@ struct ContentView: View {
                 asset = nil
                 print("clear button clicked.")
             })
-            Button("Load glTF asset by URL", action: {
+            Button("Load gltf/glb asset by URL", action: {
                 print("load glTF button clicked.")
                 showAlert = true
             })
@@ -34,15 +34,36 @@ struct ContentView: View {
                     print("trying to load asset: \(urlString)")
 
                     if let url = URL(string: urlString) {
-                        do {
-                            let contents = try String(contentsOf: url, encoding: .utf8)
+                        if (url.pathExtension.lowercased() == "gltf") {
+                            do {
+                                let contents = try String(contentsOf: url, encoding: .utf8)
+                                try ObjC.catchException {
+                                    asset = gltf_binding(string: contents)
+                                    message = asset!.toString()
+                                }
+                            } catch {
+                                message = "\(error)"
+                            }
+                        } else if (url.pathExtension.lowercased() == "glb") {
                             
-                            //try ObjC.catchException {
-                                asset = gltf_binding(string: contents)
-                                message = asset!.toString()
-                            //}
-                        } catch {
-                            message = "\(error)"
+                            URLSession.shared.dataTask(with: url) { (data, res, error) in
+                                
+                                guard let data = data else {
+                                      return
+                                }
+
+                                do {
+                                    try ObjC.catchException {
+                                        asset = gltf_binding(nsData: data)
+                                        message = asset!.toString()
+                                    }
+                                } catch {
+                                    message = "\(error)"
+                                }
+                            }.resume()
+                            
+                        } else {
+                            message = "unsupported format"
                         }
                     }
                 })

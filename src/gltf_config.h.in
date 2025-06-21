@@ -1,0 +1,4 @@
+// the configured options and settings for gltf
+#define gltf_VERSION_MAJOR @gltf_VERSION_MAJOR@
+#define gltf_VERSION_MINOR @gltf_VERSION_MINOR@
+#define gltf_VERSION_PATCH @gltf_VERSION_PATCH@
