@@ -413,14 +413,8 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data) {
         for (uint32_t a=0; a<texturesDef.size(); a++) {
             auto texture = texturesDef[a];
 
-            uint64_t sampler = -1;
-            if (texture["sampler"].is_number()) {
-                sampler = texture["sampler"];
-            }
-            uint64_t source = -1;
-            if (texture["source"].is_number()) {
-                source = texture["source"];
-            }
+            int64_t sampler = texture.value("sampler",-1);
+            int64_t source = texture.value("source",-1);
             textures->emplace_back(sampler, source);
         }
     }
@@ -544,7 +538,7 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data) {
 
                 // TODO load targets
 
-                primitives.emplace_back(attributes, indices, material, mode, nullptr);
+                primitives.emplace_back(attributes, indices, material, mode, std::vector<uint8_t>());
             }
 
             std::vector<GLTF_REAL_NUMBER_TYPE> weights;

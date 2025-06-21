@@ -52,7 +52,21 @@ namespace systems::leal::gltf
         /**
          * An array of morph targets.
          */
-        std::vector<uint8_t> *targets;
+        std::vector<uint8_t> targets;
+
+        Primitive(
+            const std::unordered_map<std::string, uint64_t> &attributes,
+            int64_t indices,
+            int64_t material,
+            PrimitiveMode mode,
+            std::vector<uint8_t> targets
+        ) {
+            this->attributes = attributes;
+            this->indices = indices;
+            this->material = material;
+            this->mode = mode;
+            this->targets = targets;
+        }
     };
 
     /**
