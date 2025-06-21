@@ -13,6 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 using namespace systems::leal::gltf;
 
+
 @interface gltf_binding()
 
 @property std::shared_ptr<systems::leal::gltf::GLTF> native;
@@ -21,18 +22,52 @@ using namespace systems::leal::gltf;
 
 @implementation gltf_binding
 
--(id) init:(NSString *)data
+-(id) initWithString:(NSString *)data
 {
     if (self=[super init]) {
-        
-        self.native = GLTF::loadGLTF(data.UTF8String, [](const std::string &uri) {
-            std::future<std::vector<uint8_t>> toReturn = std::async(std::launch::async, []() {
-                return std::vector<uint8_t>();
-            });
-            return toReturn;
-        } );
+
+        try {
+            self.native = GLTF::loadGLTF(data.UTF8String);
+            if (self.native == nullptr) {
+                return nil;
+            }
+        } catch (std::exception &ex) {
+            [NSException raise:@"Internal exception" format:@"%s", ex.what()];
+            return nil;
+        }
     }
     return self;
+}
+
+-(id) initWithNSData:(NSData *)data
+{
+    if (self=[super init]) {
+
+        try {
+            self.native = GLTF::loadGLB((uint8_t *)data.bytes, data.length);
+            if (self.native == nullptr) {
+                return nil;
+            }
+        } catch (std::exception &ex) {
+            [NSException raise:@"Internal exception" format:@"%s", ex.what()];
+            return nil;
+        }
+    }
+    return self;
+
+}
+
+
+-(void)dealloc
+{
+    NSLog(@"destructor asset pointer: %ld",self.native.use_count());
+    self.native = nullptr;
+}
+
+-(NSString *) toString
+{
+    return [NSString stringWithCString:self.native->toString().c_str()
+                              encoding:NSUTF8StringEncoding];
 }
 
 @end

@@ -14,27 +14,27 @@ namespace systems::leal::gltf
         /**
          * The URI (or IRI) of the image.
          */
-        std::string *uri;
+        std::string uri;
 
         /**
          * The image’s media type. This field MUST be defined when bufferView is
          * defined.
          */
-        std::string *mimeType;
+        std::string mimeType;
 
         /**
          * The index of the bufferView that contains the image. This field MUST NOT
          * be defined when uri is defined.
          */
-        uint64_t *bufferView;
+        uint64_t bufferView;
 
-        Image(std::string *uri, std::string *mimeType, uint64_t *bufferView) {
+        Image(const std::string &uri, const std::string &mimeType, uint64_t bufferView) {
             this->uri = uri;
             this->mimeType = mimeType;
             this->bufferView = bufferView;
         }
 
-        ~Image() {
+        /*~Image() {
             if (uri != nullptr) {
                 delete uri;
             }
@@ -44,7 +44,7 @@ namespace systems::leal::gltf
             if (bufferView != nullptr) {
                 delete bufferView;
             }
-        }        
+        }*/       
     };
 
 }

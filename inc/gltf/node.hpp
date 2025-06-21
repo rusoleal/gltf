@@ -27,64 +27,64 @@ namespace systems::leal::gltf
         /**
          * The index of the [Camera] referenced by this node.
          */
-        uint64_t *camera;
+        uint64_t camera;
 
         /**
          * The indices of this node’s children.
          */
-        std::vector<uint64_t> *children;
+        std::vector<uint64_t> children;
 
         /**
          * The index of the skin referenced by this node. When a skin is referenced
          * by a node within a [Scene], all joints used by the skin MUST belong to the
          * same scene. When defined, [mesh] MUST also be defined.
          */
-        uint64_t *skin;
+        uint64_t skin;
 
         /**
          * A floating-point 4x4 transformation matrix stored in column-major order.
          */
-        systems::leal::vector_math::Matrix4 matrix;
+        systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE> matrix;
 
         /**
          * The index of the [Mesh] in this node.
          */
-        uint64_t *mesh;
+        uint64_t mesh;
 
         /**
          * The node’s unit quaternion rotation in the order (x, y, z, w), where w is
          * the scalar.
          */
-        systems::leal::vector_math::Quaternion rotation;
+        systems::leal::vector_math::Quaternion<GLTF_REAL_NUMBER_TYPE> rotation;
 
         /**
          * The node’s non-uniform scale, given as the scaling factors along the x, y,
          * and z axes.
          */
-        systems::leal::vector_math::Vector3 scale;
+        systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> scale;
 
         /**
          * The node’s translation along the x, y, and z axes.
          */
-        systems::leal::vector_math::Vector3 translation;
+        systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> translation;
 
         /**
          * The weights of the instantiated morph target. The number of array elements
          * MUST match the number of morph targets of the referenced mesh. When
          * defined, mesh MUST also be defined.
          */
-        std::vector<double> weights;
+        std::vector<GLTF_REAL_NUMBER_TYPE> weights;
 
         Node(
-            uint64_t *camera,
-            std::vector<uint64_t> *children,
-            uint64_t *skin,
-            systems::leal::vector_math::Matrix4 matrix,
-            uint64_t *mesh,
-            systems::leal::vector_math::Quaternion rotation,
-            systems::leal::vector_math::Vector3 scale,
-            systems::leal::vector_math::Vector3 translation,
-            std::vector<double> weights
+            uint64_t camera,
+            std::vector<uint64_t> children,
+            uint64_t skin,
+            systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE> matrix,
+            uint64_t mesh,
+            systems::leal::vector_math::Quaternion<GLTF_REAL_NUMBER_TYPE> rotation,
+            systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> scale,
+            systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> translation,
+            std::vector<GLTF_REAL_NUMBER_TYPE> weights
         ) {
             this->camera =  camera;
             this->children = children;

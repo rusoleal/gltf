@@ -16,7 +16,7 @@ namespace systems::leal::gltf
          * The index of the [Node] to animate. When undefined, the animated object
          * MAY be defined by an extension.
          */
-        uint64_t *node;
+        uint64_t node;
 
         /**
          * The name of the node’s TRS property to animate, or the "weights" of the

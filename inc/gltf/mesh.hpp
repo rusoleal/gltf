@@ -37,12 +37,12 @@ namespace systems::leal::gltf
          * undefined, the primitive defines non-indexed geometry. When defined, the
          * [Accessor] MUST have SCALAR type and an unsigned integer component type.
          */
-        uint64_t *indices;
+        uint64_t indices;
 
         /**
          * The index of the [Material] to apply to this primitive when rendering.
          */
-        uint64_t *material;
+        uint64_t material;
 
         /**
          * The topology type of primitives to render.
@@ -70,9 +70,9 @@ namespace systems::leal::gltf
          * Array of weights to be applied to the morph targets. The number of array
          * elements MUST match the number of morph targets.
          */
-        std::vector<double> *weights;
+        std::vector<GLTF_REAL_NUMBER_TYPE> weights;
 
-        Mesh(const std::vector<Primitive> primitives, std::vector<double> *weights) {
+        Mesh(const std::vector<Primitive> primitives, const std::vector<GLTF_REAL_NUMBER_TYPE> &weights) {
             this->primitives = primitives;
             this->weights = weights;
         }

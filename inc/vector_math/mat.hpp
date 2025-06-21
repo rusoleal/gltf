@@ -5,7 +5,7 @@
 namespace systems::leal::vector_math {
 
     template<class DATA_TYPE, uint32_t ROWS, uint32_t COLS>
-    class Mat: Vec<DATA_TYPE,ROWS*COLS> {
+    class Mat:public Vec<DATA_TYPE,ROWS*COLS> {
 
     };
 

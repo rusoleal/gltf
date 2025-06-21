@@ -3,3 +3,4 @@
 //
 
 #import "gltf_binding.h"
+#import "ObjC.h"

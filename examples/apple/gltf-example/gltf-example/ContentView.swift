@@ -11,6 +11,8 @@ struct ContentView: View {
     
     @State private var showAlert = false
     @State private var urlString: String = ""
+    @State private var asset: gltf_binding? = nil
+    @State private var message: String = "Load a glTF asset..."
     
     var body: some View {
         VStack {
@@ -18,6 +20,10 @@ struct ContentView: View {
                 .imageScale(.large)
                 .foregroundStyle(.tint)
             Text("Hello, world!")*/
+            Button("Clear", action: {
+                asset = nil
+                print("clear button clicked.")
+            })
             Button("Load glTF asset by URL", action: {
                 print("load glTF button clicked.")
                 showAlert = true
@@ -31,18 +37,19 @@ struct ContentView: View {
                         do {
                             let contents = try String(contentsOf: url, encoding: .utf8)
                             
-                            var pepe = gltf_binding(contents)
+                            //try ObjC.catchException {
+                                asset = gltf_binding(string: contents)
+                                message = asset!.toString()
+                            //}
                         } catch {
-                            
+                            message = "\(error)"
                         }
-                    } else {
-                        
                     }
                 })
                 Button("Cancel", role: .cancel, action: {
-                    
                 })
             }
+            Text(message)
             
         }
         .padding()

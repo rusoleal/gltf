@@ -37,7 +37,7 @@ namespace systems::leal::gltf
          * When this is not defined, data is tightly packed. When two or more
          * accessors use the same [BufferView], this field MUST be defined.
          */
-        uint64_t* byteStride;
+        uint64_t byteStride;
 
         /**
          * The hint representing the intended GPU buffer type to use with this
@@ -46,7 +46,7 @@ namespace systems::leal::gltf
         BufferViewTarget* target;
 
 
-        BufferView(uint64_t buffer, uint64_t byteOffset, uint64_t byteLength, uint64_t *byteStride, BufferViewTarget* target) {
+        BufferView(uint64_t buffer, uint64_t byteOffset, uint64_t byteLength, uint64_t byteStride, BufferViewTarget* target) {
             this->buffer = buffer;
             this->byteOffset = byteOffset;
             this->byteLength = byteLength;
@@ -55,9 +55,6 @@ namespace systems::leal::gltf
         }
 
         ~BufferView() {
-            if (byteStride != nullptr) {
-                delete byteStride;
-            }
             if (target != nullptr) {
                 delete target;
             }

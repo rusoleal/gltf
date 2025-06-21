@@ -7,12 +7,15 @@
 
 #import <Foundation/Foundation.h>
 
-NS_ASSUME_NONNULL_BEGIN
+//NS_ASSUME_NONNULL_BEGIN
 
 @interface gltf_binding : NSObject
 
--(id) init:(NSString *)data;
+-(id) initWithString:(NSString *)data;
+-(id) initWithNSData:(NSData *)data;
+
+-(NSString *) toString;
 
 @end
 
-NS_ASSUME_NONNULL_END
+//NS_ASSUME_NONNULL_END

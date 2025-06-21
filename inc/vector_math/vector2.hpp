@@ -4,7 +4,14 @@
 
 namespace systems::leal::vector_math {
 
-    class Vector2: Vec<float,2> {
+    template<class DATA_TYPE>
+    class Vector2:public Vec<DATA_TYPE,2> {
+    public:
+        Vector2() = default;
+        Vector2(DATA_TYPE x, DATA_TYPE y) {
+            this->data[0] = x;
+            this->data[1] = y;
+        }
 
     };
 

@@ -4,7 +4,10 @@
 
 namespace systems::leal::vector_math {
 
-    class Matrix3: Mat<float,3,3> {
+    template<class DATA_TYPE>
+    class Matrix3:public Mat<DATA_TYPE,3,3> {
+    public:
+        Matrix3() = default;
 
     };
 

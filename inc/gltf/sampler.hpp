@@ -7,6 +7,7 @@ namespace systems::leal::gltf
      * Magnification/minification filter modes.
      */
     enum class FilterMode {
+        fmUnknown = 0,
         fmNearest = 9728,
         fmLinear = 9729,
         fmNearestMipmapNearest = 9984,
@@ -32,12 +33,12 @@ namespace systems::leal::gltf
         /**
          * Magnification filter.
          */
-        FilterMode *magFilter;
+        FilterMode magFilter;
 
         /**
          * Minification filter.
          */
-        FilterMode *minFilter;
+        FilterMode minFilter;
 
         /**
          * S (U) wrapping mode. All valid values correspond to WebGL enums.
@@ -49,21 +50,21 @@ namespace systems::leal::gltf
          */
         WrapMode wrapT;
         
-        Sampler(FilterMode *magFilter, FilterMode *minFilter, WrapMode wrapS, WrapMode wrapT) {
+        Sampler(FilterMode magFilter, FilterMode minFilter, WrapMode wrapS, WrapMode wrapT) {
             this->magFilter = magFilter;
             this->minFilter = minFilter;
             this->wrapS = wrapS;
             this->wrapT = wrapT;
         }
 
-        ~Sampler() {
+        /*~Sampler() {
             if (magFilter != nullptr) {
                 delete magFilter;
             }
             if (minFilter != nullptr) {
                 delete minFilter;
             }
-        }
+        }*/
         
     };
 }
