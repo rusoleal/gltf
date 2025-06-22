@@ -25,7 +25,6 @@
 #include <gltf/animation.hpp>
 #include <gltf/camera.hpp>
 #include <gltf/skin.hpp>
-#include <gltf/runtime_image.hpp>
 #include <gltf/extensions/khr_lights_punctual.hpp>
 
 namespace systems::leal::gltf {
@@ -45,7 +44,7 @@ namespace systems::leal::gltf {
         std::shared_ptr<std::vector<Camera>> cameras;
         std::shared_ptr<std::vector<Image>> images;
         std::shared_ptr<std::vector<Texture>> textures;
-        uint64_t scene;
+        int64_t scene;
         std::shared_ptr<std::vector<Scene>> scenes;
         std::shared_ptr<std::vector<Node>> nodes;
         std::shared_ptr<std::vector<Sampler>> samplers;
@@ -65,9 +64,10 @@ namespace systems::leal::gltf {
 
         static std::shared_ptr<GLTF> loadGLTF(const std::string &data);
         static std::shared_ptr<GLTF> loadGLB(uint8_t *data, uint64_t size);
-        static std::string getVersion();
 
     private:        
+        void updateRuntimeInfoWithMaterial(std::shared_ptr<RuntimeInfo> runtimeInfo, Material &material);
+        void updateRuntimeInfoWithNode(std::shared_ptr<RuntimeInfo> runtimeInfo, Node &node);
         GLTF(
             std::shared_ptr<std::vector<Buffer>> buffers,
             std::shared_ptr<std::vector<BufferView>> bufferViews,
@@ -75,7 +75,7 @@ namespace systems::leal::gltf {
             std::shared_ptr<std::vector<Camera>> cameras,
             std::shared_ptr<std::vector<Image>> images,
             std::shared_ptr<std::vector<Texture>> textures,
-            uint64_t scene,
+            int64_t scene,
             std::shared_ptr<std::vector<Scene>> scenes,
             std::shared_ptr<std::vector<Node>> nodes,
             std::shared_ptr<std::vector<Sampler>> samplers,
@@ -86,4 +86,6 @@ namespace systems::leal::gltf {
             std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual
         );
     };
+
+    std::string getVersion();
 }

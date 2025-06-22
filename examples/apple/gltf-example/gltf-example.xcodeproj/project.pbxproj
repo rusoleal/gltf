@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		592F5AEB2E06F5BE008B44B2 /* base64.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 592F5AEA2E06F5BE008B44B2 /* base64.cpp */; };
+		5956BF472E07D3D200B85B61 /* utils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 5956BF462E07D3D200B85B61 /* utils.cpp */; };
 		59EA384B2DE1BCC800A3D97A /* gltf.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 59EA384A2DE1BCC800A3D97A /* gltf.cpp */; };
 /* End PBXBuildFile section */
 
@@ -29,8 +30,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		592F5AEA2E06F5BE008B44B2 /* base64.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = base64.cpp; path = /Users/rubenleal/Projects/gltf/src/base64.cpp; sourceTree = "<absolute>"; };
+		592F5AEA2E06F5BE008B44B2 /* base64.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = base64.cpp; path = ../../../src/base64.cpp; sourceTree = SOURCE_ROOT; };
 		592F5AEC2E0711DD008B44B2 /* gltf_config.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = gltf_config.h; sourceTree = "<group>"; };
+		5956BF462E07D3D200B85B61 /* utils.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = utils.cpp; path = ../../../src/utils.cpp; sourceTree = SOURCE_ROOT; };
 		59EA381F2DE1BC4200A3D97A /* gltf-example.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "gltf-example.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		59EA382D2DE1BC4500A3D97A /* gltf-exampleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "gltf-exampleTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		59EA38372DE1BC4600A3D97A /* gltf-exampleUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "gltf-exampleUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -91,6 +93,7 @@
 				59EA384A2DE1BCC800A3D97A /* gltf.cpp */,
 				592F5AEC2E0711DD008B44B2 /* gltf_config.h */,
 				592F5AEA2E06F5BE008B44B2 /* base64.cpp */,
+				5956BF462E07D3D200B85B61 /* utils.cpp */,
 				59EA384C2DE1BCDC00A3D97A /* gltf-example-Bridging-Header.h */,
 			);
 			sourceTree = "<group>";
@@ -252,6 +255,7 @@
 			files = (
 				592F5AEB2E06F5BE008B44B2 /* base64.cpp in Sources */,
 				59EA384B2DE1BCC800A3D97A /* gltf.cpp in Sources */,
+				5956BF472E07D3D200B85B61 /* utils.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -41,7 +41,7 @@ namespace systems::leal::gltf
          * initialized with zeros; [sparse] property or extensions MAY override zeros
          * with actual values.
          */
-        uint64_t bufferView;
+        int64_t bufferView;
         
         /**
          * The offset relative to the start of the [BufferView] in bytes.
@@ -109,7 +109,7 @@ namespace systems::leal::gltf
         // TODO sparse
 
         Accessor(
-            uint64_t bufferView, 
+            int64_t bufferView, 
             uint64_t byteOffset, 
             ComponentType componentType, 
             bool normalized,

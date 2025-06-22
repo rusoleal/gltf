@@ -1,40 +1,14 @@
 #include <exception>
 #include <sstream>
 #include <gltf/gltf.hpp>
-#include "gltf_config.h"
-#include <vector_math/vector2.hpp>
-#include <vector_math/vector3.hpp>
-#include <vector_math/vector4.hpp>
-#include <vector_math/matrix2.hpp>
-#include <vector_math/matrix3.hpp>
-#include <vector_math/matrix4.hpp>
 #include "json.hpp"
 #include "base64.h"
-
-//#define STB_IMAGE_IMPLEMENTATION
-//#include "stb_image.h"
+#include "utils.hpp"
+#include "gltf_config.h"
 
 using namespace systems::leal::gltf;
 using json = nlohmann::json;
 
-std::vector<std::string> split(const std::string &s, const std::string &delimiter);
-systems::leal::vector_math::Vector2<GLTF_REAL_NUMBER_TYPE> *vec2FromGLTF(const nlohmann::json &data);
-systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> *vec3FromGLTF(const nlohmann::json &data);
-systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> vec3FromGLTF(const nlohmann::json &data, const systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> &defaultValue);
-systems::leal::vector_math::Vector4<GLTF_REAL_NUMBER_TYPE> *vec4FromGLTF(const nlohmann::json &data);
-systems::leal::vector_math::Vector4<GLTF_REAL_NUMBER_TYPE> vec4FromGLTF(const nlohmann::json &data, const systems::leal::vector_math::Vector4<GLTF_REAL_NUMBER_TYPE> &defaultValue);
-systems::leal::vector_math::Quaternion<GLTF_REAL_NUMBER_TYPE> quatFromGLTF(const nlohmann::json &data, const systems::leal::vector_math::Quaternion<GLTF_REAL_NUMBER_TYPE> &defaultValue);
-systems::leal::vector_math::Matrix2<GLTF_REAL_NUMBER_TYPE> *mat2FromGLTF(const nlohmann::json &data);
-systems::leal::vector_math::Matrix3<GLTF_REAL_NUMBER_TYPE> *mat3FromGLTF(const nlohmann::json &data);
-systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE> *mat4FromGLTF(const nlohmann::json &data);
-systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE> mat4FromGLTF(const nlohmann::json &data, const systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE> &defaultValue);
-void realListFromGLTF(std::vector<GLTF_REAL_NUMBER_TYPE> &output, const nlohmann::json &data);
-void intListFromGLTF(std::vector<uint64_t> &output, const nlohmann::json &data);
-std::shared_ptr<TextureInfo> textureInfoFromGLTF(const nlohmann::json &data);
-AlphaMode alphaModeFromGLTF(const nlohmann::json &data);
-
-bool startsWith(const std::string &str, const std::string &preffix);
-bool endsWith(const std::string &str, const std::string &suffix);
 
 /*
 // no inline, required by [replacement.functions]/3
@@ -98,7 +72,7 @@ GLTF::GLTF(
     std::shared_ptr<std::vector<Camera>> cameras,
     std::shared_ptr<std::vector<Image>> images,
     std::shared_ptr<std::vector<Texture>> textures,
-    uint64_t scene,
+    int64_t scene,
     std::shared_ptr<std::vector<Scene>> scenes,
     std::shared_ptr<std::vector<Node>> nodes,
     std::shared_ptr<std::vector<Sampler>> samplers,
@@ -130,32 +104,92 @@ GLTF::~GLTF() {
     std::printf("GLTF::~GLTF\n");
 }
 
+void GLTF::updateRuntimeInfoWithNode(std::shared_ptr<RuntimeInfo> runtimeInfo, Node &node) {
+        if (node.mesh != -1) {
+            auto &mesh = (*meshes)[node.mesh];
+            for (auto &primitive: mesh.primitives) {
+                
+                if (primitive.material != -1) {
+                    updateRuntimeInfoWithMaterial(runtimeInfo, (*materials)[primitive.material]);
+                }
+
+                // search for indices buffer
+                if (primitive.indices != -1) {
+                    auto &accessor = (*accessors)[primitive.indices];
+                    if (accessor.bufferView != -1) {
+                        auto &bufferView = (*bufferViews)[accessor.bufferView];
+                        runtimeInfo->buffers[bufferView.buffer] = true;
+                    }
+                }
+
+                // search for vertex attributes
+                for (auto const& [key, val]: primitive.attributes) {
+                    auto accessor = (*accessors)[val];
+                    if (accessor.bufferView != -1) {
+                        auto &bufferView = (*bufferViews)[accessor.bufferView];
+                        runtimeInfo->buffers[bufferView.buffer] = true;
+                    }
+                }
+            }
+        }
+
+        for (auto child: node.children) {
+            updateRuntimeInfoWithNode(runtimeInfo, (*nodes)[child]);
+        }
+}
+
+void GLTF::updateRuntimeInfoWithMaterial(std::shared_ptr<RuntimeInfo> runtimeInfo, Material &material) {
+
+    if (material.emissiveTexture != nullptr) {
+        auto texture = (*textures)[material.emissiveTexture->index];
+        if (texture.source != -1) {
+            runtimeInfo->images[texture.source] = true;
+        }
+    }
+
+    if (material.normalTexture != nullptr) {
+        auto texture = (*textures)[material.normalTexture->index];
+        if (texture.source != -1) {
+            runtimeInfo->images[texture.source] = true;
+        }
+    }
+
+    if (material.occlusionTexture != nullptr) {
+        auto texture = (*textures)[material.occlusionTexture->index];
+        if (texture.source != -1) {
+            runtimeInfo->images[texture.source] = true;
+        }
+    }
+
+    if (material.pbrMetallicRoughness != nullptr) {
+        if (material.pbrMetallicRoughness->baseColorTexture != nullptr) {
+            auto texture = (*textures)[material.pbrMetallicRoughness->baseColorTexture->index];
+            if (texture.source != -1) {
+                runtimeInfo->images[texture.source] = true;
+            }
+        }
+
+        if (material.pbrMetallicRoughness->metallicRoughnessTexture != nullptr) {
+            auto texture = (*textures)[material.pbrMetallicRoughness->metallicRoughnessTexture->index];
+            if (texture.source != -1) {
+                runtimeInfo->images[texture.source] = true;
+            }
+        }
+    }
+}
+
 std::shared_ptr<RuntimeInfo> GLTF::getRuntimeInfo(uint64_t sceneIndex) {
-    if (sceneIndex<0 || sceneIndex>= scenes->size()) {
+    if (sceneIndex>= scenes->size()) {
         return nullptr;
     }
     auto toReturn = std::make_shared<RuntimeInfo>(buffers->size(), images->size());
+
+    auto &scene = (*scenes)[sceneIndex];
+    for (auto nodeIndex: *scene.nodes) {
+        updateRuntimeInfoWithNode(toReturn, (*nodes)[nodeIndex]);
+    }
+
     return toReturn;
-}
-
-
-FilterMode filterModeFromGLTF(nlohmann::json &node) {
-    if (node.is_number()) {
-        return (FilterMode)(uint64_t)node;
-    }
-    return FilterMode::fmUnknown;
-}
-
-std::shared_ptr<std::vector<uint64_t>> uintListFromGLTF(nlohmann::json &node) {
-    if (node.is_array()) {
-        auto toReturn = std::make_shared<std::vector<uint64_t>>();
-        toReturn->reserve(node.size());
-        for (uint64_t a=0; a<node.size(); a++) {
-            toReturn->emplace_back(node[a]);
-        }
-        return toReturn;
-    }
-    return nullptr;
 }
 
 #define CHUNK_TYPE_JSON 0x4E4F534A
@@ -303,10 +337,7 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data) {
         for (uint32_t a=0; a<accessorsDef.size(); a++ ) {
             auto accessor = accessorsDef[a];
             
-            uint64_t bufferView = -1;
-            if (accessor["bufferView"].is_number()) {
-                bufferView = accessor["bufferView"];
-            }
+            int64_t bufferView = accessor.value("bufferView",-1);
             uint64_t byteOffset = accessor.value("byteOffset", std::uint64_t(0));
             ComponentType componentType = (ComponentType)(uint64_t)accessor["componentType"];
             bool normalized = accessor.value("normalized", false);
@@ -591,7 +622,7 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data) {
     }
 
     // Scenes
-    uint64_t scene = gltfDef.value("scene",-1);
+    int64_t scene = gltfDef.value("scene",-1);
     auto scenes = std::make_shared<std::vector<Scene>>();
     auto scenesDef = gltfDef["scenes"];
     if (scenesDef.is_array()) {
@@ -664,199 +695,6 @@ std::string GLTF::toString() {
     return ss.str();
 }
 
-std::vector<std::string> split(const std::string &s, const std::string &delimiter) {
-
-    if (delimiter.empty()) return {};
-
-    std::string copy(s);
-    size_t pos = 0;
-    std::string token;
-    std::vector<std::string> toReturn;
-    while ((pos = copy.find(delimiter)) != std::string::npos) {
-        token = copy.substr(0, pos);
-        toReturn.push_back(token);
-        copy.erase(0, pos + delimiter.length());
-    }
-    
-    if (!copy.empty())
-        toReturn.push_back(copy);
-
-    return toReturn;
-}
-
-bool startsWith(const std::string &str, const std::string &preffix) {
-    return str.rfind(preffix,0) == 0;
-}
-
-bool endsWith(const std::string &str, const std::string &suffix) {
-    if (str.length() < suffix.length()) {
-        return false;
-    }
-    return str.compare(str.length() - suffix.length(), suffix.length(), suffix) == 0;
-}
-
-systems::leal::vector_math::Vector2<GLTF_REAL_NUMBER_TYPE> *vec2FromGLTF(const nlohmann::json &data) {
-    if (!data.is_array()) {
-        return nullptr;
-    }
-    if (data.size() != 2) {
-        return nullptr;
-    }
-    return new systems::leal::vector_math::Vector2<GLTF_REAL_NUMBER_TYPE>(data[0], data[1]);
-}
-
-systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> *vec3FromGLTF(const nlohmann::json &data) {
-    if (!data.is_array()) {
-        return nullptr;
-    }
-    if (data.size() != 3) {
-        return nullptr;
-    }
-    return new systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE>(data[0], data[1], data[2]);
-}
-
-systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> vec3FromGLTF(const nlohmann::json &data, const systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> &defaultValue) {
-    if (!data.is_array()) {
-        return defaultValue;
-    }
-    if (data.size() != 3) {
-        return defaultValue;
-    }
-    return  { data[0], data[1], data[2] };
-}
-
-systems::leal::vector_math::Vector4<GLTF_REAL_NUMBER_TYPE> *vec4FromGLTF(const nlohmann::json &data) {
-    if (!data.is_array()) {
-        return nullptr;
-    }
-    if (data.size() != 4) {
-        return nullptr;
-    }
-    return new systems::leal::vector_math::Vector4<GLTF_REAL_NUMBER_TYPE>(data[0], data[1], data[2], data[3]);
-}
-
-systems::leal::vector_math::Vector4<GLTF_REAL_NUMBER_TYPE> vec4FromGLTF(const nlohmann::json &data, const systems::leal::vector_math::Vector4<GLTF_REAL_NUMBER_TYPE> &defaultValue) {
-    if (!data.is_array()) {
-        return defaultValue;
-    }
-    if (data.size() != 4) {
-        return defaultValue;
-    }
-    return systems::leal::vector_math::Vector4<GLTF_REAL_NUMBER_TYPE>(data[0], data[1], data[2], data[3]);
-}
-
-
-systems::leal::vector_math::Quaternion<GLTF_REAL_NUMBER_TYPE> quatFromGLTF(const nlohmann::json &data, const systems::leal::vector_math::Quaternion<GLTF_REAL_NUMBER_TYPE> &defaultValue) {
-    if (!data.is_array()) {
-        return defaultValue;
-    }
-    if (data.size() != 4) {
-        return defaultValue;
-    }
-    return systems::leal::vector_math::Quaternion<GLTF_REAL_NUMBER_TYPE>(data[0], data[1], data[2], data[3]);
-}
-
-systems::leal::vector_math::Matrix2<GLTF_REAL_NUMBER_TYPE> *mat2FromGLTF(const nlohmann::json &data) {
-    if (!data.is_array()) {
-        return nullptr;
-    }
-    if (data.size() != 4) {
-        return nullptr;
-    }
-    auto toReturn = new systems::leal::vector_math::Matrix2<GLTF_REAL_NUMBER_TYPE>();
-    for (int a=0; a<4; a++) {
-        toReturn->data[a] = data[a];
-    }
-    return toReturn;
-}
-
-systems::leal::vector_math::Matrix3<GLTF_REAL_NUMBER_TYPE> *mat3FromGLTF(const nlohmann::json &data) {
-    if (!data.is_array()) {
-        return nullptr;
-    }
-    if (data.size() != 9) {
-        return nullptr;
-    }
-    auto toReturn = new systems::leal::vector_math::Matrix3<GLTF_REAL_NUMBER_TYPE>();
-    for (int a=0; a<9; a++) {
-        toReturn->data[a] = data[a];
-    }
-    return toReturn;
-}
-
-systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE> *mat4FromGLTF(const nlohmann::json &data) {
-    if (!data.is_array()) {
-        return nullptr;
-    }
-    if (data.size() != 16) {
-        return nullptr;
-    }
-    auto toReturn = new systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE>();
-    for (int a=0; a<16; a++) {
-        toReturn->data[a] = data[a];
-    }
-    return toReturn;
-}
-
-systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE> mat4FromGLTF(const nlohmann::json &data, const systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE> &defaultValue) {
-    if (!data.is_array()) {
-        return defaultValue;
-    }
-    if (data.size() != 16) {
-        return defaultValue;
-    }
-    systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE> toReturn;
-    for (int a=0; a<16; a++) {
-        toReturn.data[a] = data[a];
-    }
-    return toReturn;
-}
-
-
-void realListFromGLTF(std::vector<GLTF_REAL_NUMBER_TYPE> &output, const nlohmann::json &data) {
-    if (!data.is_array()) {
-        return;
-    }
-
-    for (int a=0; a<data.size(); a++) {
-        output.push_back(data[a]);
-    }
-}
-
-void intListFromGLTF(std::vector<uint64_t> &output, const nlohmann::json &data) {
-    if (!data.is_array()) {
-        return;
-    }
-
-    for (int a=0; a<data.size(); a++) {
-        output.push_back(data[a]);
-    }
-}
-
-std::shared_ptr<TextureInfo> textureInfoFromGLTF(const nlohmann::json &data) {
-    if (!data.is_object()) {
-        return nullptr;
-    }
-
-    return std::make_shared<TextureInfo>(
-        data["index"],
-        data.value("texCoord",0)
-    );
-}
-
-AlphaMode alphaModeFromGLTF(const nlohmann::json &data) {
-
-    if (!data.is_string()) {
-        return AlphaMode::opaque;
-    }
-
-    std::string value = data;
-    if (value == "OPAQUE") return AlphaMode::opaque;
-    if (value == "MASK") return AlphaMode::mask;
-    if (value == "BLEND") return AlphaMode::blend;
-    return AlphaMode::opaque;
-}
-
-std::string GLTF::getVersion() {
+std::string systems::leal::gltf::getVersion() {
     return std::to_string(gltf_VERSION_MAJOR) + "." + std::to_string(gltf_VERSION_MINOR) + "." + std::to_string(gltf_VERSION_PATCH);
 }

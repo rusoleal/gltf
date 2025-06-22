@@ -39,6 +39,7 @@ struct ContentView: View {
                                 let contents = try String(contentsOf: url, encoding: .utf8)
                                 try ObjC.catchException {
                                     asset = gltf_binding(string: contents)
+                                    asset?.getRuntimeInfo(0)
                                     message = asset!.toString()
                                 }
                             } catch {
@@ -55,6 +56,7 @@ struct ContentView: View {
                                 do {
                                     try ObjC.catchException {
                                         asset = gltf_binding(nsData: data)
+                                        asset?.getRuntimeInfo(0)
                                         message = asset!.toString()
                                     }
                                 } catch {

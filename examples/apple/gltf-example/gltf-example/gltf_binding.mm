@@ -1,11 +1,4 @@
-//
-//  gltf_binding.m
-//  gltf-example
-//
-//  Created by Ruben Leal on 24/5/25.
-//
 
-#import <future>
 #import "gltf_binding.h"
 #import "gltf/gltf.hpp"
 
@@ -57,6 +50,27 @@ using namespace systems::leal::gltf;
 
 }
 
+-(::RuntimeInfo *) getRuntimeInfo:(uint64_t)sceneIndex
+{
+    auto info = self.native->getRuntimeInfo(sceneIndex);
+    if (info == nullptr) {
+        return nil;
+    }
+    
+    auto buffers = [NSMutableArray array];
+    for (int a=0; a<info->buffers.size(); a++) {
+        [buffers addObject:[NSNumber numberWithBool:info->buffers[a]]];
+    }
+    auto images = [NSMutableArray array];
+    for (int a=0; a<info->images.size(); a++) {
+        [images addObject:[NSNumber numberWithBool:info->images[a]]];
+    }
+
+    auto toReturn = [[::RuntimeInfo alloc] init:buffers :images];
+    
+    return toReturn;
+}
+
 
 -(void)dealloc
 {
@@ -72,7 +86,7 @@ using namespace systems::leal::gltf;
 
 +(NSString *) getVersion
 {
-    return [NSString stringWithCString:systems::leal::gltf::GLTF::getVersion().c_str() encoding:NSUTF8StringEncoding];
+    return [NSString stringWithCString:systems::leal::gltf::getVersion().c_str() encoding:NSUTF8StringEncoding];
 }
 
 @end
