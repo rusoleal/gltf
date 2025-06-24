@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector_math/vector4.hpp>
+#include <gltf/gltf_child_of_root.hpp>
 
 namespace systems::leal::gltf
 {
@@ -9,7 +10,8 @@ namespace systems::leal::gltf
      * The material’s alpha rendering mode enumeration specifying
      * the interpretation of the alpha value of the base color.
      */
-    enum AlphaMode {
+    enum AlphaMode
+    {
 
         /**
          * The alpha value is ignored, and the rendered output is fully opaque.
@@ -30,10 +32,11 @@ namespace systems::leal::gltf
          * painting operation (i.e. the Porter and Duff over operator).
          */
         blend,
-    };    
+    };
 
     /// Base class for texture base information.
-    struct TextureInfo {
+    struct TextureInfo
+    {
         /// The index of the [Texture].
         uint64_t index;
 
@@ -44,7 +47,8 @@ namespace systems::leal::gltf
         /// for the material to be applicable to it.
         uint64_t texCoord;
 
-        TextureInfo(uint64_t index, uint64_t texCoord) {
+        TextureInfo(uint64_t index, uint64_t texCoord)
+        {
             this->index = index;
             this->texCoord = texCoord;
         }
@@ -52,7 +56,8 @@ namespace systems::leal::gltf
 
     /// A set of parameter values that are used to define the metallic-roughness
     /// material model from Physically Based Rendering (PBR) methodology.
-    struct PBRMetallicRoughness {
+    struct PBRMetallicRoughness
+    {
         /// The factors for the base color of the material. This value defines linear
         /// multipliers for the sampled texels of the base color texture.
         systems::leal::vector_math::Vector4<GLTF_REAL_NUMBER_TYPE> baseColorFactor;
@@ -89,15 +94,14 @@ namespace systems::leal::gltf
             std::shared_ptr<TextureInfo> baseColorTexture,
             GLTF_REAL_NUMBER_TYPE metallicFactor,
             GLTF_REAL_NUMBER_TYPE roughnessFactor,
-            std::shared_ptr<TextureInfo> metallicRoughnessTexture
-        ) {
+            std::shared_ptr<TextureInfo> metallicRoughnessTexture)
+        {
             this->baseColorFactor = baseColorFactor;
             this->baseColorTexture = baseColorTexture;
             this->metallicFactor = metallicFactor;
             this->roughnessFactor = roughnessFactor;
             this->metallicRoughnessTexture = metallicRoughnessTexture;
         }
-
     };
 
     /// The tangent space normal texture.
@@ -107,7 +111,8 @@ namespace systems::leal::gltf
     ///
     /// The normal vectors use the convention +X is right and +Y is up. +Z points
     /// toward the viewer. If a fourth component (A) is present, it MUST be ignored.
-    struct NormalTextureInfo: TextureInfo {
+    struct NormalTextureInfo : TextureInfo
+    {
         /// The scalar parameter applied to each normal vector of the texture. This
         /// value scales the normal vector in X and Y directions using the formula:
         /// scaledNormal = normalize&lt;sampled normal texture value&gt; * 2.0 - 1.0) *
@@ -115,7 +120,8 @@ namespace systems::leal::gltf
         GLTF_REAL_NUMBER_TYPE scale;
 
         NormalTextureInfo(uint64_t index, uint64_t texCoord, GLTF_REAL_NUMBER_TYPE scale)
-        :TextureInfo(index,texCoord) {
+            : TextureInfo(index, texCoord)
+        {
             this->scale = scale;
         }
     };
@@ -127,8 +133,9 @@ namespace systems::leal::gltf
     /// Higher values indicate areas that receive full indirect lighting and lower
     /// values indicate no indirect lighting. If other channels are present (GBA),
     /// they MUST be ignored for occlusion calculations.
-    struct OcclusionTextureInfo: TextureInfo {
-        
+    struct OcclusionTextureInfo : TextureInfo
+    {
+
         /// A scalar parameter controlling the amount of occlusion applied. A value
         /// of 0.0 means no occlusion. A value of 1.0 means full occlusion. This value
         /// affects the final occlusion value as:
@@ -136,17 +143,18 @@ namespace systems::leal::gltf
         GLTF_REAL_NUMBER_TYPE strength;
 
         OcclusionTextureInfo(uint64_t index, uint64_t texCoord, GLTF_REAL_NUMBER_TYPE strength)
-        :TextureInfo(index,texCoord) {
+            : TextureInfo(index, texCoord)
+        {
             this->strength = strength;
         }
-
     };
 
     /**
      * The material appearance of a [Primitive].
      */
-    struct Material {
-        
+    struct Material : public GLTFChildOfRoot
+    {
+
         /// A set of parameter values that are used to define the metallic-roughness
         /// material model from Physically Based Rendering (PBR) methodology.
         ///
@@ -198,6 +206,7 @@ namespace systems::leal::gltf
         bool doubleSided;
 
         Material(
+            const std::string &name,
             std::shared_ptr<PBRMetallicRoughness> pbrMetallicRoughness,
             std::shared_ptr<NormalTextureInfo> normalTexture,
             std::shared_ptr<OcclusionTextureInfo> occlusionTexture,
@@ -205,8 +214,8 @@ namespace systems::leal::gltf
             systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> emissiveFactor,
             AlphaMode alphaMode,
             GLTF_REAL_NUMBER_TYPE alphaCutoff,
-            bool doubleSided
-        ) {
+            bool doubleSided) : GLTFChildOfRoot(name)
+        {
             this->pbrMetallicRoughness = pbrMetallicRoughness;
             this->normalTexture = normalTexture;
             this->occlusionTexture = occlusionTexture;
@@ -216,6 +225,5 @@ namespace systems::leal::gltf
             this->alphaCutoff = alphaCutoff;
             this->doubleSided = doubleSided;
         }
-
     };
 }

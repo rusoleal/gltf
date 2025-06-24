@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <gltf/gltf_child_of_root.hpp>
 
 namespace systems::leal::gltf
 {
@@ -8,7 +9,8 @@ namespace systems::leal::gltf
     /**
      * The datatype of the accessor’s components.
      */
-    enum class ComponentType {
+    enum class ComponentType
+    {
         ctByte = 5120,
         ctUnsignedByte = 5121,
         ctShort = 5122,
@@ -17,11 +19,11 @@ namespace systems::leal::gltf
         ctFloat = 5126,
     };
 
-
     /**
      * Specifies if the accessor’s elements are scalars, vectors, or matrices.
      */
-    enum class AccessorType {
+    enum class AccessorType
+    {
         acScalar,
         acVec2,
         acVec3,
@@ -34,7 +36,8 @@ namespace systems::leal::gltf
     /**
      * A typed view into a buffer view that contains raw binary data.
      */
-    struct Accessor {
+    struct Accessor : public GLTFChildOfRoot
+    {
 
         /**
          * The index of the [BufferView]. When undefined, the accessor MUST be
@@ -42,7 +45,7 @@ namespace systems::leal::gltf
          * with actual values.
          */
         int64_t bufferView;
-        
+
         /**
          * The offset relative to the start of the [BufferView] in bytes.
          *
@@ -109,19 +112,21 @@ namespace systems::leal::gltf
         // TODO sparse
 
         Accessor(
-            int64_t bufferView, 
-            uint64_t byteOffset, 
-            ComponentType componentType, 
+            const std::string &name,
+            int64_t bufferView,
+            uint64_t byteOffset,
+            ComponentType componentType,
             bool normalized,
             uint64_t count,
-            AccessorType type) {
+            AccessorType type) : GLTFChildOfRoot(name)
+        {
 
-                this->bufferView = bufferView;
-                this->byteOffset = byteOffset;
-                this->componentType = componentType;
-                this->normalized = normalized;
-                this->count = count;
-                this->type = type;
+            this->bufferView = bufferView;
+            this->byteOffset = byteOffset;
+            this->componentType = componentType;
+            this->normalized = normalized;
+            this->count = count;
+            this->type = type;
         }
 
         /*~Accessor() {
@@ -129,6 +134,5 @@ namespace systems::leal::gltf
                 delete bufferView;
             }
         }*/
-
     };
 }

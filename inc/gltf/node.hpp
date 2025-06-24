@@ -4,6 +4,7 @@
 #include <vector_math/vector3.hpp>
 #include <vector_math/quaternion.hpp>
 #include <vector_math/matrix4.hpp>
+#include <gltf/gltf_child_of_root.hpp>
 
 namespace systems::leal::gltf
 {
@@ -22,7 +23,8 @@ namespace systems::leal::gltf
      * When a node is targeted for animation (referenced by an
      * [AnimationChannelTarget]), matrix MUST NOT be present.
      */
-    struct Node {
+    struct Node : public GLTFChildOfRoot
+    {
 
         /**
          * The index of the [Camera] referenced by this node.
@@ -81,6 +83,7 @@ namespace systems::leal::gltf
         int64_t light;
 
         Node(
+            const std::string &name,
             int64_t camera,
             std::vector<uint64_t> children,
             int64_t skin,
@@ -90,16 +93,16 @@ namespace systems::leal::gltf
             systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> scale,
             systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> translation,
             std::vector<GLTF_REAL_NUMBER_TYPE> weights,
-            int64_t light
-        ) {
-            this->camera =  camera;
+            int64_t light) : GLTFChildOfRoot(name)
+        {
+            this->camera = camera;
             this->children = children;
-            this->skin =  skin;
+            this->skin = skin;
             this->matrix = matrix;
-            this->mesh =  mesh;
+            this->mesh = mesh;
             this->rotation = rotation;
             this->scale = scale;
-            this->translation=  translation;
+            this->translation = translation;
             this->weights = weights;
             this->light = light;
         }

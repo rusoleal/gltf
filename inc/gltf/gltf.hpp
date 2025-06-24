@@ -27,14 +27,16 @@
 #include <gltf/skin.hpp>
 #include <gltf/extensions/khr_lights_punctual.hpp>
 
-namespace systems::leal::gltf {
-    
-    //typedef std::future<std::shared_ptr<std::vector<uint8_t>>> (* onLoadDataEvent)(const std::string &uri);
+namespace systems::leal::gltf
+{
+
+    // typedef std::future<std::shared_ptr<std::vector<uint8_t>>> (* onLoadDataEvent)(const std::string &uri);
 
     /**
      * The root object for a glTF asset.
      */
-    struct GLTF {
+    struct GLTF
+    {
 
         static const std::array<char const *, 2> implementedExtensions;
 
@@ -65,7 +67,7 @@ namespace systems::leal::gltf {
         static std::shared_ptr<GLTF> loadGLTF(const std::string &data);
         static std::shared_ptr<GLTF> loadGLB(uint8_t *data, uint64_t size);
 
-    private:        
+    private:
         void updateRuntimeInfoWithMaterial(std::shared_ptr<RuntimeInfo> runtimeInfo, Material &material);
         void updateRuntimeInfoWithNode(std::shared_ptr<RuntimeInfo> runtimeInfo, Node &node);
         GLTF(
@@ -83,8 +85,7 @@ namespace systems::leal::gltf {
             std::shared_ptr<std::vector<Material>> materials,
             std::shared_ptr<std::vector<Animation>> animations,
             std::shared_ptr<std::vector<Skin>> skins,
-            std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual
-        );
+            std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual);
     };
 
     std::string getVersion();

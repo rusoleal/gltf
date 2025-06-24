@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <gltf/gltf_child_of_root.hpp>
 
 namespace systems::leal::gltf
 {
@@ -8,7 +9,8 @@ namespace systems::leal::gltf
     /**
      * A texture and its sampler.
      */
-    struct Texture {
+    struct Texture : public GLTFChildOfRoot
+    {
 
         /**
          * The index of the sampler used by this texture. When undefined, a sampler
@@ -29,7 +31,12 @@ namespace systems::leal::gltf
          */
         int64_t ext_texture_webp;
 
-        Texture(int64_t sampler, int64_t source, int64_t ext_texture_webp) {
+        Texture(
+            const std::string &name,
+            int64_t sampler,
+            int64_t source,
+            int64_t ext_texture_webp) : GLTFChildOfRoot(name)
+        {
             this->sampler = sampler;
             this->source = source;
             this->ext_texture_webp = ext_texture_webp;
@@ -43,6 +50,5 @@ namespace systems::leal::gltf
                 delete source;
             }
         }*/
-
     };
 }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <gltf/gltf_child_of_root.hpp>
+
 namespace systems::leal::gltf
 {
 
@@ -7,6 +9,7 @@ namespace systems::leal::gltf
      * The hint representing the intended GPU buffer type to use with this buffer view.
      */
     enum class BufferViewTarget {
+        undefined = 0,
         arrayBuffer = 34962,
         elementArrayBuffer = 34963
     };
@@ -14,7 +17,7 @@ namespace systems::leal::gltf
     /**
      * A view into a buffer generally representing a subset of the buffer.
      */
-    struct BufferView {
+    struct BufferView: public GLTFChildOfRoot {
 
         /**
          * The index of the buffer.
@@ -37,16 +40,22 @@ namespace systems::leal::gltf
          * When this is not defined, data is tightly packed. When two or more
          * accessors use the same [BufferView], this field MUST be defined.
          */
-        uint64_t byteStride;
+        int64_t byteStride;
 
         /**
          * The hint representing the intended GPU buffer type to use with this
          * buffer view.
          */
-        BufferViewTarget* target;
+        BufferViewTarget target;
 
 
-        BufferView(uint64_t buffer, uint64_t byteOffset, uint64_t byteLength, uint64_t byteStride, BufferViewTarget* target) {
+        BufferView(
+            const std::string &name,
+            uint64_t buffer, 
+            uint64_t byteOffset, 
+            uint64_t byteLength, 
+            int64_t byteStride, 
+            BufferViewTarget target):GLTFChildOfRoot(name) {
             this->buffer = buffer;
             this->byteOffset = byteOffset;
             this->byteLength = byteLength;
@@ -54,11 +63,11 @@ namespace systems::leal::gltf
             this->target = target;
         }
 
-        ~BufferView() {
+        /*~BufferView() {
             if (target != nullptr) {
                 delete target;
             }
-        }
+        }*/
 
 
     };

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <gltf/gltf_child_of_root.hpp>
 
 namespace systems::leal::gltf
 {
@@ -9,7 +10,8 @@ namespace systems::leal::gltf
      * Image data used to create a texture. Image MAY be referenced by an URI
      * (or IRI) or a buffer view index.
      */
-    struct Image {
+    struct Image : public GLTFChildOfRoot
+    {
 
         /**
          * The URI (or IRI) of the image.
@@ -30,12 +32,18 @@ namespace systems::leal::gltf
 
         /**
          * Embedded data:uri or glb format.
-         * 
+         *
          * Only available for embedded content. Length must fit [byteLength] property.
          */
         std::vector<uint8_t> data;
 
-        Image(const std::string &uri, const std::string &mimeType, int64_t bufferView, const std::vector<uint8_t> &data) {
+        Image(
+            const std::string &name,
+            const std::string &uri,
+            const std::string &mimeType,
+            int64_t bufferView,
+            const std::vector<uint8_t> &data) : GLTFChildOfRoot(name)
+        {
             this->uri = uri;
             this->mimeType = mimeType;
             this->bufferView = bufferView;
@@ -52,7 +60,7 @@ namespace systems::leal::gltf
             if (bufferView != nullptr) {
                 delete bufferView;
             }
-        }*/       
+        }*/
     };
 
 }

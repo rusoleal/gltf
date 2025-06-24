@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <gltf/gltf_child_of_root.hpp>
 
 namespace systems::leal::gltf
 {
@@ -79,7 +80,6 @@ namespace systems::leal::gltf
         aiCubicSpline,
     };
 
-
     /**
      * An animation sampler combines timestamps with a sequence of output values
      * and defines an interpolation algorithm.
@@ -110,7 +110,7 @@ namespace systems::leal::gltf
     /**
      * A keyframe animation.
      */
-    struct Animation
+    struct Animation : public GLTFChildOfRoot
     {
 
         /**
@@ -126,7 +126,11 @@ namespace systems::leal::gltf
          */
         std::vector<AnimationSampler> samplers;
 
-        Animation(const std::vector<AnimationChannel> &channels, const std::vector<AnimationSampler> &samplers) {
+        Animation(
+            const std::string &name,
+            const std::vector<AnimationChannel> &channels,
+            const std::vector<AnimationSampler> &samplers) : GLTFChildOfRoot(name)
+        {
             this->channels = channels;
             this->samplers = samplers;
         }

@@ -2,13 +2,16 @@
 
 #include <string>
 #include <vector>
+#include <gltf/gltf_child_of_root.hpp>
 
-namespace systems::leal::gltf {
+namespace systems::leal::gltf
+{
 
     /**
      * A buffer points to binary geometry, animation, or skins.
      */
-    struct Buffer {
+    struct Buffer : public GLTFChildOfRoot
+    {
 
         /**
          * The URI (or IRI) of the buffer.
@@ -22,17 +25,21 @@ namespace systems::leal::gltf {
 
         /**
          * Embedded data:uri or glb format.
-         * 
+         *
          * Only available for embedded content. Length must fit [byteLength] property.
          */
         std::vector<uint8_t> data;
 
-        Buffer(const std::string &uri, uint64_t byteLength, std::vector<uint8_t> &data) {
+        Buffer(
+            const std::string &name,
+            const std::string &uri,
+            uint64_t byteLength,
+            std::vector<uint8_t> &data) : GLTFChildOfRoot(name)
+        {
             this->uri = uri;
             this->byteLength = byteLength;
             this->data = data;
         }
-
     };
 
 }

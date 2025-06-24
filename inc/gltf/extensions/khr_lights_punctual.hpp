@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector_math/vector3.hpp>
+#include <gltf/gltf_child_of_root.hpp>
 
 namespace systems::leal::gltf
 {
@@ -55,7 +56,7 @@ namespace systems::leal::gltf
      * Light definition according to KHR_lights_punctual extension.
      * https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_lights_punctual
      */
-    struct KHRLightPunctual
+    struct KHRLightPunctual : public GLTFChildOfRoot
     {
 
         KHRLightPunctualType type;
@@ -71,12 +72,14 @@ namespace systems::leal::gltf
         GLTF_REAL_NUMBER_TYPE outerConeAngle;
 
         KHRLightPunctual(
+            const std::string &name,
             KHRLightPunctualType type,
             const systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> &color = systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE>(1.0, 1.0, 1.0),
             GLTF_REAL_NUMBER_TYPE intensity = 1.0,
             GLTF_REAL_NUMBER_TYPE range = std::numeric_limits<GLTF_REAL_NUMBER_TYPE>::max(),
             GLTF_REAL_NUMBER_TYPE innerConeAngle = 0.0,
-            GLTF_REAL_NUMBER_TYPE outerConeAngle = M_PI_4) : color(color),
+            GLTF_REAL_NUMBER_TYPE outerConeAngle = M_PI_4) : GLTFChildOfRoot(name),
+                                                             color(color),
                                                              intensity(intensity),
                                                              type(type),
                                                              range(range),

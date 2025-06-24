@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <gltf/gltf_child_of_root.hpp>
 
 namespace systems::leal::gltf
 {
@@ -10,7 +11,8 @@ namespace systems::leal::gltf
     /**
      * The topology type of primitives to render.
      */
-    enum PrimitiveMode {
+    enum PrimitiveMode
+    {
         pmPoints = 0,
         pmLines = 1,
         pmLineLoop = 2,
@@ -23,8 +25,9 @@ namespace systems::leal::gltf
     /**
      * Geometry to be rendered with the given [Material].
      */
-    struct Primitive {
-        
+    struct Primitive
+    {
+
         /**
          * A plain JSON object, where each key corresponds to a mesh attribute
          * semantic and each value is the index of the accessor containing
@@ -59,8 +62,8 @@ namespace systems::leal::gltf
             int64_t indices,
             int64_t material,
             PrimitiveMode mode,
-            std::vector<uint8_t> targets
-        ) {
+            std::vector<uint8_t> targets)
+        {
             this->attributes = attributes;
             this->indices = indices;
             this->material = material;
@@ -73,8 +76,9 @@ namespace systems::leal::gltf
      * A set of primitives to be rendered. Its global transform is defined by a
      * [Node] that references it.
      */
-    struct Mesh {
-        
+    struct Mesh : public GLTFChildOfRoot
+    {
+
         /**
          * An array of primitives, each defining geometry to be rendered.
          */
@@ -86,7 +90,11 @@ namespace systems::leal::gltf
          */
         std::vector<GLTF_REAL_NUMBER_TYPE> weights;
 
-        Mesh(const std::vector<Primitive> primitives, const std::vector<GLTF_REAL_NUMBER_TYPE> &weights) {
+        Mesh(
+            const std::string &name,
+            const std::vector<Primitive> primitives,
+            const std::vector<GLTF_REAL_NUMBER_TYPE> &weights) : GLTFChildOfRoot(name)
+        {
             this->primitives = primitives;
             this->weights = weights;
         }

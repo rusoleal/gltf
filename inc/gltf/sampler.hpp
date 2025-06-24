@@ -1,12 +1,15 @@
 #pragma once
 
+#include <gltf/gltf_child_of_root.hpp>
+
 namespace systems::leal::gltf
 {
 
     /**
      * Magnification/minification filter modes.
      */
-    enum class FilterMode {
+    enum class FilterMode
+    {
         fmUnknown = 0,
         fmNearest = 9728,
         fmLinear = 9729,
@@ -19,16 +22,18 @@ namespace systems::leal::gltf
     /**
      * Wrapping mode.
      */
-    enum class WrapMode { 
-        clampToEdge = 33071, 
-        mirroredRepeat = 33648, 
+    enum class WrapMode
+    {
+        clampToEdge = 33071,
+        mirroredRepeat = 33648,
         repeat = 10497
     };
 
     /**
      * Texture sampler properties for filtering and wrapping modes.
      */
-    struct Sampler {
+    struct Sampler : public GLTFChildOfRoot
+    {
 
         /**
          * Magnification filter.
@@ -49,8 +54,14 @@ namespace systems::leal::gltf
          * T (V) wrapping mode.
          */
         WrapMode wrapT;
-        
-        Sampler(FilterMode magFilter, FilterMode minFilter, WrapMode wrapS, WrapMode wrapT) {
+
+        Sampler(
+            const std::string &name,
+            FilterMode magFilter,
+            FilterMode minFilter,
+            WrapMode wrapS,
+            WrapMode wrapT) : GLTFChildOfRoot(name)
+        {
             this->magFilter = magFilter;
             this->minFilter = minFilter;
             this->wrapS = wrapS;
@@ -65,6 +76,5 @@ namespace systems::leal::gltf
                 delete minFilter;
             }
         }*/
-        
     };
 }

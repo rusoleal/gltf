@@ -1,17 +1,26 @@
 #pragma once
 
-namespace systems::leal::gltf {
+#include <gltf/gltf_child_of_root.hpp>
+
+namespace systems::leal::gltf
+{
 
     /**
      */
-    struct Camera {
+    struct Camera : public GLTFChildOfRoot
+    {
+
+        Camera(const std::string &name) : GLTFChildOfRoot(name)
+        {
+        }
     };
 
     /**
      * An orthographic camera containing properties to create an orthographic
      * projection matrix.
      */
-    struct OrthographicCamera: Camera {
+    struct OrthographicCamera : Camera
+    {
 
         /**
          * The floating-point horizontal magnification of the view. This value
@@ -36,20 +45,26 @@ namespace systems::leal::gltf {
          */
         GLTF_REAL_NUMBER_TYPE zNear;
 
-        OrthographicCamera(GLTF_REAL_NUMBER_TYPE xMag, GLTF_REAL_NUMBER_TYPE yMag, GLTF_REAL_NUMBER_TYPE zFar, GLTF_REAL_NUMBER_TYPE zNear) {
+        OrthographicCamera(
+            const std::string &name,
+            GLTF_REAL_NUMBER_TYPE xMag, 
+            GLTF_REAL_NUMBER_TYPE yMag, 
+            GLTF_REAL_NUMBER_TYPE zFar, 
+            GLTF_REAL_NUMBER_TYPE zNear):Camera(name)
+        {
             this->xMag = xMag;
             this->yMag = yMag;
             this->zFar = zFar;
             this->zNear = zNear;
         }
-
     };
 
     /**
      * A perspective camera containing properties to create a perspective
      * projection matrix.
      */
-    struct PerspectiveCamera: Camera {
+    struct PerspectiveCamera : Camera
+    {
 
         /**
          * The floating-point aspect ratio of the field of view. When undefined, the
@@ -75,21 +90,29 @@ namespace systems::leal::gltf {
          */
         GLTF_REAL_NUMBER_TYPE zNear;
 
-        PerspectiveCamera(GLTF_REAL_NUMBER_TYPE *aspectRatio, GLTF_REAL_NUMBER_TYPE yFov, GLTF_REAL_NUMBER_TYPE *zFar, GLTF_REAL_NUMBER_TYPE zNear) {
+        PerspectiveCamera(
+            const std::string &name,
+            GLTF_REAL_NUMBER_TYPE *aspectRatio, 
+            GLTF_REAL_NUMBER_TYPE yFov, 
+            GLTF_REAL_NUMBER_TYPE *zFar, 
+            GLTF_REAL_NUMBER_TYPE zNear):Camera(name)
+        {
             this->aspectRatio = aspectRatio;
             this->yFov = yFov;
             this->zFar = zFar;
             this->zNear = zNear;
         }
 
-        ~PerspectiveCamera() {
-            if (aspectRatio != nullptr) {
+        ~PerspectiveCamera()
+        {
+            if (aspectRatio != nullptr)
+            {
                 delete aspectRatio;
             }
-            if (zFar != nullptr) {
+            if (zFar != nullptr)
+            {
                 delete zFar;
             }
         }
-
     };
 }
