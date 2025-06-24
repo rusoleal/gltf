@@ -23,9 +23,16 @@ namespace systems::leal::gltf
          */
         int64_t source;
 
-        Texture(int64_t sampler, int64_t source) {
+        /**
+         * The index of the webp image populated by EXT_texture_webp extension.
+         * Undefined value = -1
+         */
+        int64_t ext_texture_webp;
+
+        Texture(int64_t sampler, int64_t source, int64_t ext_texture_webp) {
             this->sampler = sampler;
             this->source = source;
+            this->ext_texture_webp = ext_texture_webp;
         }
 
         /*~Texture() {

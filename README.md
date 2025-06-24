@@ -36,4 +36,4 @@ Ratified glTF 2.0 extensions:
 | KHR_xmp_json_ld                 | Pending | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_xmp_json_ld)                 |
 | EXT_mesh_gpu_instancing         | Pending | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_mesh_gpu_instancing)          |
 | EXT_meshopt_compression         | Pending | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_meshopt_compression)          |
-| EXT_texture_webp                | Pending | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_texture_webp)                 |
+| EXT_texture_webp                | Ok.     | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_texture_webp)                 |

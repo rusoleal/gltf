@@ -36,7 +36,7 @@ namespace systems::leal::gltf {
      */
     struct GLTF {
 
-        static const std::array<char const *, 1> implementedExtensions;
+        static const std::array<char const *, 2> implementedExtensions;
 
         std::shared_ptr<std::vector<Buffer>> buffers;
         std::shared_ptr<std::vector<BufferView>> bufferViews;

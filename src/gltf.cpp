@@ -61,8 +61,9 @@ void operator delete[](void* ptr, std::size_t size) noexcept
     std::free(ptr);
 }
 */
-const std::array<char const *, 1> GLTF::implementedExtensions = {
+const std::array<char const *, 2> GLTF::implementedExtensions = {
     "KHR_lights_punctual",
+    "EXT_texture_webp"
 };
 
 GLTF::GLTF(
@@ -446,7 +447,11 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data) {
 
             int64_t sampler = texture.value("sampler",-1);
             int64_t source = texture.value("source",-1);
-            textures->emplace_back(sampler, source);
+            
+            // EXT_texture_webp
+            int64_t extTextureWebp = texture["extensions"]["EXT_texture_webp"].value("source",-1);
+
+            textures->emplace_back(sampler, source, extTextureWebp);
         }
     }
 
