@@ -58,17 +58,32 @@ namespace systems::leal::gltf
     struct KHRLightPunctual
     {
 
+        KHRLightPunctualType type;
+
         systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> color;
 
         GLTF_REAL_NUMBER_TYPE intensity;
 
-        KHRLightPunctualType type;
-
-        GLTF_REAL_NUMBER_TYPE *range;
+        GLTF_REAL_NUMBER_TYPE range;
 
         GLTF_REAL_NUMBER_TYPE innerConeAngle;
 
         GLTF_REAL_NUMBER_TYPE outerConeAngle;
+
+        KHRLightPunctual(
+            KHRLightPunctualType type,
+            const systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> &color = systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE>(1.0, 1.0, 1.0),
+            GLTF_REAL_NUMBER_TYPE intensity = 1.0,
+            GLTF_REAL_NUMBER_TYPE range = std::numeric_limits<GLTF_REAL_NUMBER_TYPE>::max(),
+            GLTF_REAL_NUMBER_TYPE innerConeAngle = 0.0,
+            GLTF_REAL_NUMBER_TYPE outerConeAngle = M_PI_4) : color(color),
+                                                             intensity(intensity),
+                                                             type(type),
+                                                             range(range),
+                                                             innerConeAngle(innerConeAngle),
+                                                             outerConeAngle(outerConeAngle)
+        {
+        }
     };
 
 }

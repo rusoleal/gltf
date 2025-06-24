@@ -75,6 +75,11 @@ namespace systems::leal::gltf
          */
         std::vector<GLTF_REAL_NUMBER_TYPE> weights;
 
+        /**
+         * KHR_lights_punctual extension
+         */
+        int64_t light;
+
         Node(
             int64_t camera,
             std::vector<uint64_t> children,
@@ -84,7 +89,8 @@ namespace systems::leal::gltf
             systems::leal::vector_math::Quaternion<GLTF_REAL_NUMBER_TYPE> rotation,
             systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> scale,
             systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> translation,
-            std::vector<GLTF_REAL_NUMBER_TYPE> weights
+            std::vector<GLTF_REAL_NUMBER_TYPE> weights,
+            int64_t light
         ) {
             this->camera =  camera;
             this->children = children;
@@ -95,6 +101,7 @@ namespace systems::leal::gltf
             this->scale = scale;
             this->translation=  translation;
             this->weights = weights;
+            this->light = light;
         }
     };
 }

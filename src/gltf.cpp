@@ -607,6 +607,12 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data) {
             std::vector<GLTF_REAL_NUMBER_TYPE> weights;
             realListFromGLTF(weights, nodeDef["weights"]);
 
+            auto khrLightsPunctual = nodeDef["extensions"]["KHR_lights_punctual"];
+            int64_t light = -1;
+            if (khrLightsPunctual.is_object()) {
+                light = khrLightsPunctual.value("light",-1);
+            }
+
             nodes->emplace_back(
                 camera, 
                 children, 
@@ -616,7 +622,8 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data) {
                 rotation, 
                 scale, 
                 translation, 
-                weights
+                weights,
+                light
             );
         }
     }
@@ -655,6 +662,36 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data) {
 
     // KHR_lights_punctual
     auto khrLightsPunctual = std::make_shared<std::vector<KHRLightPunctual>>();
+    auto khrLightsPunctualDef = gltfDef["extensions"]["KHR_lights_punctual"]["lights"];
+    if (khrLightsPunctualDef.is_array()) {
+        khrLightsPunctual->reserve(khrLightsPunctualDef.size());
+        for (uint32_t a=0; a<khrLightsPunctualDef.size(); a++) {
+            auto light = khrLightsPunctualDef[a];
+            std::string typeString = light["type"];
+            KHRLightPunctualType type;
+            if (typeString == "directional") type = KHRLightPunctualType::directional;
+            else if (typeString == "point") type = KHRLightPunctualType::point;
+            else if (typeString == "spot") type = KHRLightPunctualType::spot;
+            else {
+                throw std::invalid_argument("KHR_lights_punctual: unknown light type: "+typeString);
+            }
+            
+            auto color = vec3FromGLTF(light["color"], systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE>(1,1,1));
+            GLTF_REAL_NUMBER_TYPE intensity = light.value("intensity",1);
+            auto range = light.value("range",std::numeric_limits<GLTF_REAL_NUMBER_TYPE>::max());
+            GLTF_REAL_NUMBER_TYPE innerConeAngle = light.value("innerConeAngle",0);
+            GLTF_REAL_NUMBER_TYPE outerConeAngle = light.value("outerConeAngle",M_PI_4);
+
+            khrLightsPunctual->emplace_back(
+                type,
+                color,
+                intensity,
+                range,
+                innerConeAngle,
+                outerConeAngle
+            );
+        }
+    }
     
     return std::shared_ptr<GLTF>(new GLTF(
         buffers,
