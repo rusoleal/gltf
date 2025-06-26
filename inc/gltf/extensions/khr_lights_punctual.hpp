@@ -1,6 +1,7 @@
 #pragma once
 
 #include <limits>
+#define _USE_MATH_DEFINES // windows specific for M_PI constants
 #include <cmath>
 #include <vector_math/vector3.hpp>
 #include <gltf/gltf_child_of_root.hpp>
