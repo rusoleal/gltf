@@ -5,6 +5,7 @@
 #include <vector_math/quaternion.hpp>
 #include <vector_math/matrix4.hpp>
 #include <gltf/gltf_child_of_root.hpp>
+#include <gltf/extensions/ext_mesh_gpu_instancing.hpp>
 
 namespace systems::leal::gltf
 {
@@ -82,6 +83,8 @@ namespace systems::leal::gltf
          */
         int64_t light;
 
+        std::shared_ptr<EXTMeshGpuInstancing> extMeshGpuInstancing;
+
         Node(
             const std::string &name,
             int64_t camera,
@@ -93,7 +96,8 @@ namespace systems::leal::gltf
             systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> scale,
             systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> translation,
             std::vector<GLTF_REAL_NUMBER_TYPE> weights,
-            int64_t light) : GLTFChildOfRoot(name)
+            int64_t light,
+            std::shared_ptr<EXTMeshGpuInstancing> extMeshGpuInstancing) : GLTFChildOfRoot(name)
         {
             this->camera = camera;
             this->children = children;
@@ -105,6 +109,7 @@ namespace systems::leal::gltf
             this->translation = translation;
             this->weights = weights;
             this->light = light;
+            this->extMeshGpuInstancing = extMeshGpuInstancing;
         }
     };
 }

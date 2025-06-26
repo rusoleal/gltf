@@ -1,5 +1,7 @@
 #pragma once
 
+#include <limits>
+#include <math.h>
 #include <vector_math/vector3.hpp>
 #include <gltf/gltf_child_of_root.hpp>
 

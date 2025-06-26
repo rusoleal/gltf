@@ -60,9 +60,11 @@ void operator delete[](void* ptr, std::size_t size) noexcept
     std::free(ptr);
 }
 */
-const std::array<char const *, 2> GLTF::implementedExtensions = {
+const std::array<char const *, 3> GLTF::implementedExtensions = {
     "KHR_lights_punctual",
-    "EXT_texture_webp"};
+    "EXT_texture_webp",
+    "EXT_mesh_gpu_instancing"
+};
 
 GLTF::GLTF(
     std::shared_ptr<std::vector<Buffer>> buffers,
@@ -710,6 +712,15 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
                 light = khrLightsPunctual.value("light", -1);
             }
 
+            std::shared_ptr<EXTMeshGpuInstancing> extMeshGpuInstancing = nullptr;
+            auto extMeshGpuInstancingDef = nodeDef["extensions"]["EXT_mesh_gpu_instancing"]["attributes"];
+            if (extMeshGpuInstancingDef.is_object()) {
+                extMeshGpuInstancing = std::make_shared<EXTMeshGpuInstancing>();
+                for (auto &element : extMeshGpuInstancingDef.items()) {
+                    extMeshGpuInstancing->attributes[element.key()] = element.value();
+                }
+            }
+
             nodes->emplace_back(
                 name,
                 camera,
@@ -721,7 +732,9 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
                 scale,
                 translation,
                 weights,
-                light);
+                light,
+                extMeshGpuInstancing
+            );
         }
     }
 
