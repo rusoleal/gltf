@@ -1,6 +1,7 @@
 #pragma once
 
-#include<vector_math/mat.hpp>
+#include <cstring>
+#include <vector_math/mat.hpp>
 
 namespace systems::leal::vector_math {
 
