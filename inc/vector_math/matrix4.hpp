@@ -13,12 +13,14 @@ namespace systems::leal::vector_math {
         }
 
         static Matrix4<DATA_TYPE> identity() {
-            return (DATA_TYPE[]){
+            auto toReturn = Matrix<DATA_TYPE>();
+            toReturn.data = (DATA_TYPE[]){
                 1.0, 0.0, 0.0, 0.0,
                 0.0, 1.0, 0.0, 0.0,
                 0.0, 0.0, 1.0, 0.0,
                 0.0, 0.0, 0.0, 1.0,
             };
+            return toReturn;
         }
     };
 
