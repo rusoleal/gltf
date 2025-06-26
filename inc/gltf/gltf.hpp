@@ -8,6 +8,7 @@
 #define GLTF_REAL_NUMBER_TYPE double
 #endif
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 #include <array>
