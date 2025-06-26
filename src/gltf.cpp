@@ -1,6 +1,8 @@
 #include <exception>
 #include <sstream>
 #include <gltf/gltf.hpp>
+#define _USE_MATH_DEFINES // windows specific for M_PI constants
+#include <cmath>
 #include "json.hpp"
 #include "base64.h"
 #include "utils.hpp"
