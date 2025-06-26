@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <vector>
 #include <string>
 #include <vector_math/vector2.hpp>
