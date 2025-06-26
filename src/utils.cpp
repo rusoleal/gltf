@@ -1,3 +1,6 @@
+#define _USE_MATH_DEFINES // windows specific for M_PI constants
+#include <cmath>
+
 #include "utils.hpp"
 
 FilterMode filterModeFromGLTF(nlohmann::json &node) {
