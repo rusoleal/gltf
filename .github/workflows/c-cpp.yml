@@ -16,10 +16,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: configure
-      run: cmake -B build -S .
+      run: cmake -B build -S . -DGLTF_BUILD_TEST=ON
     - name: make
       run: make -C build
-#    - name: make check
-#      run: make check
+    - name: test
+      run: make test -C build
 #    - name: make distcheck
 #      run: make distcheck
