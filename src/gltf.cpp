@@ -528,7 +528,10 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
             int64_t source = texture.value("source", -1);
 
             // EXT_texture_webp
-            int64_t extTextureWebp = texture["extensions"]["EXT_texture_webp"].value("source", -1);
+            int64_t extTextureWebp = -1;
+            if (texture["extensions"]["EXT_texture_webp"].is_object()) {
+                extTextureWebp = texture["extensions"]["EXT_texture_webp"].value("source", -1);
+            }
 
             textures->emplace_back(name, sampler, source, extTextureWebp);
         }
