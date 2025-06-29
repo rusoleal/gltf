@@ -19,6 +19,12 @@ jobs:
       run: cmake -B build -S . -DGLTF_BUILD_TEST=ON
     - name: make
       run: make -C build
+    - name: download gltf test model
+      run: curl https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/refs/heads/main/Models/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf > build/AlphaBlendModeTest.gltf
+    - name: download gltf-embedded test model
+      run: curl https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/refs/heads/main/Models/AlphaBlendModeTest/glTF-Embedded/AlphaBlendModeTest.gltf > build/AlphaBlendModeTestEmbedded.gltf
+    - name: download glb test model
+      run: curl https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/refs/heads/main/Models/AlphaBlendModeTest/glTF-Binary/AlphaBlendModeTest.glb > build/AlphaBlendModeTest.glb
     - name: test
       run: make test -C build
 #    - name: make distcheck
