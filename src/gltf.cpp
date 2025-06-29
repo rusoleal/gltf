@@ -86,7 +86,7 @@ GLTF::GLTF(
     std::shared_ptr<std::vector<Skin>> skins,
     std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual)
 {
-    std::printf("GLTF::GLTF\n");
+    //std::printf("GLTF::GLTF\n");
     this->buffers = buffers;
     this->bufferViews = bufferViews;
     this->accessors = accessors;
@@ -105,7 +105,7 @@ GLTF::GLTF(
 
 GLTF::~GLTF()
 {
-    std::printf("GLTF::~GLTF\n");
+    //std::printf("GLTF::~GLTF\n");
 }
 
 void GLTF::updateRuntimeInfoWithNode(std::shared_ptr<RuntimeInfo> runtimeInfo, Node &node)

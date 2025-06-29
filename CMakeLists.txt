@@ -14,7 +14,7 @@ include_directories(inc)
 
 message(STATUS ${PROJECT_NAME})
 
-include(vector_math.cmake)
+include(dependencies/vector_math.cmake)
 
 add_library(${PROJECT_NAME} SHARED
     src/gltf.cpp src/base64.cpp src/utils.cpp
@@ -35,7 +35,7 @@ if (GLTF_BUILD_TEST)
     # googletest
     SET(BUILD_GMOCK OFF CACHE BOOL "DISABLE GMOCK")
     SET(INSTALL_GTEST OFF CACHE BOOL "DISABLE INSTALL_GTEST")
-    include(googletest.cmake)
+    include(dependencies/googletest.cmake)
 
     add_executable(${PROJECT_NAME}_test 
         test/main.cpp
