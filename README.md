@@ -34,15 +34,15 @@ Ratified glTF 2.0 extensions:
 | KHR_texture_basisu              | Pending | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_basisu)              |
 | KHR_texture_transform           | Pending | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_transform)           |
 | KHR_xmp_json_ld                 | Pending | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_xmp_json_ld)                 |
-| EXT_mesh_gpu_instancing         | Pending | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_mesh_gpu_instancing)          |
+| EXT_mesh_gpu_instancing         | Ok      | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_mesh_gpu_instancing)          |
 | EXT_meshopt_compression         | Pending | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_meshopt_compression)          |
 | EXT_texture_webp                | Ok.     | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_texture_webp)                 |
 
 ## Dependencies
 
-* [systems::leal::vector_math](https://github.com/rusoleal/vector_math)
-* [nlohmann/json](https://github.com/nlohmann/json)
-* [cpp-base64](https://github.com/ReneNyffenegger/cpp-base64)
+* [systems::leal::vector_math](https://github.com/rusoleal/vector_math) C++ vector_math library
+* [nlohmann/json](https://github.com/nlohmann/json) Json reader/writer library
+* [cpp-base64](https://github.com/ReneNyffenegger/cpp-base64) Base64 encode/decode library
 
 ## Licenses
 
