@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.1] - 2026-03-14
+
+### Changed
+- Upgraded `vector_math` dependency from v0.0.1 to v0.1.0.
+
 ## [0.2.0] - 2026-03-14
 
 ### Added
