@@ -1,6 +1,9 @@
 #pragma once
 
+#include <vector>
+#include <memory>
 #include <gltf/gltf_child_of_root.hpp>
+#include <gltf/extensions/ext_meshopt_compression.hpp>
 
 namespace systems::leal::gltf
 {
@@ -48,6 +51,12 @@ namespace systems::leal::gltf
          */
         BufferViewTarget target;
 
+        /// EXT_meshopt_compression: present when the buffer view is compressed.
+        std::shared_ptr<EXTMeshoptCompression> extMeshoptCompression = nullptr;
+
+        /// EXT_meshopt_compression: decompressed bytes (count × byteStride).
+        /// Populated by GLTF::decompressMeshopt(); empty when not compressed.
+        std::vector<uint8_t> decodedData;
 
         BufferView(
             const std::string &name,
@@ -62,13 +71,6 @@ namespace systems::leal::gltf
             this->byteStride = byteStride;
             this->target = target;
         }
-
-        /*~BufferView() {
-            if (target != nullptr) {
-                delete target;
-            }
-        }*/
-
 
     };
 

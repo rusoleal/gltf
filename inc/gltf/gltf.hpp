@@ -12,6 +12,7 @@
 #include <memory>
 #include <vector>
 #include <array>
+#include <unordered_set>
 #include <gltf/runtime_info.hpp>
 #include <gltf/buffer.hpp>
 #include <gltf/buffer_view.hpp>
@@ -27,6 +28,9 @@
 #include <gltf/camera.hpp>
 #include <gltf/skin.hpp>
 #include <gltf/extensions/khr_lights_punctual.hpp>
+#include <gltf/extensions/khr_materials_variants.hpp>
+#include <gltf/extensions/khr_draco_mesh_compression.hpp>
+#include <gltf/extensions/ext_meshopt_compression.hpp>
 
 namespace systems::leal::gltf
 {
@@ -39,12 +43,12 @@ namespace systems::leal::gltf
     struct GLTF
     {
 
-        static const std::array<char const *, 3> implementedExtensions;
+        static const std::array<char const *, 23> implementedExtensions;
 
         std::shared_ptr<std::vector<Buffer>> buffers;
         std::shared_ptr<std::vector<BufferView>> bufferViews;
         std::shared_ptr<std::vector<Accessor>> accessors;
-        std::shared_ptr<std::vector<Camera>> cameras;
+        std::shared_ptr<std::vector<std::shared_ptr<Camera>>> cameras;
         std::shared_ptr<std::vector<Image>> images;
         std::shared_ptr<std::vector<Texture>> textures;
         int64_t scene;
@@ -59,6 +63,15 @@ namespace systems::leal::gltf
         // Ratified Khronos extensions.
         std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual;
 
+        /// KHR_materials_variants: named variants defined at the root level.
+        std::shared_ptr<std::vector<KHRMaterialVariant>> khrMaterialsVariants = nullptr;
+
+        /// KHR_xmp_json_ld: top-level XMP packets stored as serialized JSON strings.
+        std::shared_ptr<std::vector<std::string>> khrXmpPackets = nullptr;
+
+        /// KHR_xmp_json_ld: packet index for the asset object itself. -1 if not set.
+        int64_t khrXmpAssetPacket = -1;
+
         ~GLTF();
 
         std::shared_ptr<RuntimeInfo> getRuntimeInfo(uint64_t sceneIndex);
@@ -68,14 +81,27 @@ namespace systems::leal::gltf
         static std::shared_ptr<GLTF> loadGLTF(const std::string &data);
         static std::shared_ptr<GLTF> loadGLB(uint8_t *data, uint64_t size);
 
+        /**
+         * Decompress any KHR_draco_mesh_compression primitives whose buffer
+         * data is already available. Call this after manually filling
+         * GLTF::buffers[n].data for URI-referenced external buffers.
+         */
+        static void decompressDraco(std::shared_ptr<GLTF> &gltf);
+
+        /**
+         * Decompress any EXT_meshopt_compression buffer views whose buffer
+         * data is already available. Called automatically after loading.
+         */
+        static void decompressMeshopt(std::shared_ptr<GLTF> &gltf);
+
     private:
         void updateRuntimeInfoWithMaterial(std::shared_ptr<RuntimeInfo> runtimeInfo, Material &material);
-        void updateRuntimeInfoWithNode(std::shared_ptr<RuntimeInfo> runtimeInfo, Node &node);
+        void updateRuntimeInfoWithNode(std::shared_ptr<RuntimeInfo> runtimeInfo, Node &node, std::unordered_set<uint64_t> &visited);
         GLTF(
             std::shared_ptr<std::vector<Buffer>> buffers,
             std::shared_ptr<std::vector<BufferView>> bufferViews,
             std::shared_ptr<std::vector<Accessor>> accessors,
-            std::shared_ptr<std::vector<Camera>> cameras,
+            std::shared_ptr<std::vector<std::shared_ptr<Camera>>> cameras,
             std::shared_ptr<std::vector<Image>> images,
             std::shared_ptr<std::vector<Texture>> textures,
             int64_t scene,

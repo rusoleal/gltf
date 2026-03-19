@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.3.0] - 2026-03-19
+
+### Added
+- CMake install and `find_package` support: exports `gltfTargets.cmake`, `gltfConfig.cmake`, `gltfConfigVersion.cmake`.
+- `GLTF_REAL_NUMBER_TYPE` exposed as a CMake cache variable and propagated via `target_compile_definitions PUBLIC` to prevent ABI mismatches in consuming projects.
+- `KHR_draco_mesh_compression` extension: decompression via Google Draco.
+- `EXT_meshopt_compression` / `KHR_meshopt_compression` extensions: decompression via meshoptimizer.
+- `KHR_animation_pointer` extension.
+- `KHR_materials_variants` extension (primitive mappings and top-level variants array).
+- `KHR_xmp_json_ld` extension (asset, material, mesh, and node packet indices).
+- Sparse accessor parsing (`Accessor::Sparse` with `indices` and `values`).
+- Morph target parsing (`Primitive::targets` as attribute-name → accessor-index maps).
+- Accessor `min` / `max` parsed as `std::optional<std::vector<GLTF_REAL_NUMBER_TYPE>>`.
+- Camera polymorphism: `cameras` is now `shared_ptr<vector<shared_ptr<Camera>>>`, enabling `dynamic_pointer_cast<PerspectiveCamera>` / `dynamic_pointer_cast<OrthographicCamera>`.
+- `PerspectiveCamera::aspectRatio` and `zFar` are `std::optional` (both are optional per spec).
+- Comprehensive validation test suite (219 tests) covering all required-field and out-of-range error paths.
+
+### Changed
+- `Primitive::targets` type changed from `vector<uint8_t>` to `vector<unordered_map<string, uint64_t>>`.
+- `Accessor::min` / `max` type changed from `optional<vector<uint8_t>>` to `optional<vector<GLTF_REAL_NUMBER_TYPE>>`.
+- Upgraded `vector_math` dependency to v0.3.4.
+- `target_link_libraries` for internal dependencies (`draco`, `meshoptimizer`, `vector_math`) changed to `PRIVATE` to avoid leaking transitive dependencies to consumers.
+
+### Fixed
+- All required JSON fields (`buffer.byteLength`, `bufferView.buffer/byteLength`, `accessor.componentType/count/type`, `camera.type`, `perspective.yfov/znear`, `orthographic.xmag/ymag/zfar/znear`, `mesh.primitives`, `primitive.attributes`, `KHR_lights_punctual` light `type`, `EXT_meshopt_compression` `byteLength/byteStride/count`) now throw `std::invalid_argument` on missing or malformed input instead of silently producing zero or null values.
+- Extension blocks for primitive, mesh, node, and material now use a consistent `emptyExtensions` fallback pattern, preventing null insertion into JSON objects.
+- `clearcoatNormalTexture` missing `index` field and missing `extensions` guard.
+
 ## [0.2.1] - 2026-03-14
 
 ### Changed

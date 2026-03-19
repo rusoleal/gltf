@@ -1,13 +1,16 @@
 #pragma once
 
+#include <limits>
+#include <memory>
 #include <vector_math/vector4.hpp>
 #include <gltf/gltf_child_of_root.hpp>
+#include <gltf/extensions/khr_texture_transform.hpp>
 
 namespace systems::leal::gltf
 {
 
     /**
-     * The material’s alpha rendering mode enumeration specifying
+     * The material's alpha rendering mode enumeration specifying
      * the interpretation of the alpha value of the base color.
      */
     enum AlphaMode
@@ -22,7 +25,7 @@ namespace systems::leal::gltf
          * The rendered output is either fully opaque or fully transparent depending
          * on the alpha value and the specified alphaCutoff value; the exact
          * appearance of the edges MAY be subject to implementation-specific
-         * techniques such as “Alpha-to-Coverage”.
+         * techniques such as "Alpha-to-Coverage".
          */
         mask,
 
@@ -46,6 +49,9 @@ namespace systems::leal::gltf
         /// A mesh primitive MUST have the corresponding texture coordinate attributes
         /// for the material to be applicable to it.
         uint64_t texCoord;
+
+        /// KHR_texture_transform extension data. nullptr if not present.
+        std::shared_ptr<KHRTextureTransform> khrTextureTransform = nullptr;
 
         TextureInfo(uint64_t index, uint64_t texCoord)
         {
@@ -149,6 +155,203 @@ namespace systems::leal::gltf
         }
     };
 
+    // -------------------------------------------------------------------------
+    // KHR material extension structs
+    // Defined after NormalTextureInfo / OcclusionTextureInfo so they can
+    // reference those types.
+    // -------------------------------------------------------------------------
+
+    /**
+     * KHR_materials_transmission extension data.
+     * https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_transmission
+     */
+    struct KHRMaterialsTransmission
+    {
+        /// The base percentage of light that is transmitted through the surface. Default 0.
+        GLTF_REAL_NUMBER_TYPE transmissionFactor;
+
+        /// A texture that defines the transmission percentage of the surface.
+        std::shared_ptr<TextureInfo> transmissionTexture;
+
+        KHRMaterialsTransmission(
+            GLTF_REAL_NUMBER_TYPE transmissionFactor,
+            std::shared_ptr<TextureInfo> transmissionTexture)
+            : transmissionFactor(transmissionFactor), transmissionTexture(transmissionTexture) {}
+    };
+
+    /**
+     * KHR_materials_clearcoat extension data.
+     * https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_clearcoat
+     */
+    struct KHRMaterialsClearcoat
+    {
+        /// The clearcoat layer intensity. Default 0.
+        GLTF_REAL_NUMBER_TYPE clearcoatFactor;
+
+        std::shared_ptr<TextureInfo> clearcoatTexture;
+
+        /// The clearcoat layer roughness. Default 0.
+        GLTF_REAL_NUMBER_TYPE clearcoatRoughnessFactor;
+
+        std::shared_ptr<TextureInfo> clearcoatRoughnessTexture;
+
+        std::shared_ptr<NormalTextureInfo> clearcoatNormalTexture;
+
+        KHRMaterialsClearcoat(
+            GLTF_REAL_NUMBER_TYPE clearcoatFactor,
+            std::shared_ptr<TextureInfo> clearcoatTexture,
+            GLTF_REAL_NUMBER_TYPE clearcoatRoughnessFactor,
+            std::shared_ptr<TextureInfo> clearcoatRoughnessTexture,
+            std::shared_ptr<NormalTextureInfo> clearcoatNormalTexture)
+            : clearcoatFactor(clearcoatFactor),
+              clearcoatTexture(clearcoatTexture),
+              clearcoatRoughnessFactor(clearcoatRoughnessFactor),
+              clearcoatRoughnessTexture(clearcoatRoughnessTexture),
+              clearcoatNormalTexture(clearcoatNormalTexture) {}
+    };
+
+    /**
+     * KHR_materials_sheen extension data.
+     * https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_sheen
+     */
+    struct KHRMaterialsSheen
+    {
+        /// The sheen color in linear space. Default [0, 0, 0].
+        systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> sheenColorFactor;
+
+        std::shared_ptr<TextureInfo> sheenColorTexture;
+
+        /// The sheen roughness. Default 0.
+        GLTF_REAL_NUMBER_TYPE sheenRoughnessFactor;
+
+        std::shared_ptr<TextureInfo> sheenRoughnessTexture;
+
+        KHRMaterialsSheen(
+            const systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> &sheenColorFactor,
+            std::shared_ptr<TextureInfo> sheenColorTexture,
+            GLTF_REAL_NUMBER_TYPE sheenRoughnessFactor,
+            std::shared_ptr<TextureInfo> sheenRoughnessTexture)
+            : sheenColorFactor(sheenColorFactor),
+              sheenColorTexture(sheenColorTexture),
+              sheenRoughnessFactor(sheenRoughnessFactor),
+              sheenRoughnessTexture(sheenRoughnessTexture) {}
+    };
+
+    /**
+     * KHR_materials_specular extension data.
+     * https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_specular
+     */
+    struct KHRMaterialsSpecular
+    {
+        /// Strength of the specular reflection. Default 1.
+        GLTF_REAL_NUMBER_TYPE specularFactor;
+
+        std::shared_ptr<TextureInfo> specularTexture;
+
+        /// The F0 color of the specular reflection in linear space. Default [1, 1, 1].
+        systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> specularColorFactor;
+
+        std::shared_ptr<TextureInfo> specularColorTexture;
+
+        KHRMaterialsSpecular(
+            GLTF_REAL_NUMBER_TYPE specularFactor,
+            std::shared_ptr<TextureInfo> specularTexture,
+            const systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> &specularColorFactor,
+            std::shared_ptr<TextureInfo> specularColorTexture)
+            : specularFactor(specularFactor),
+              specularTexture(specularTexture),
+              specularColorFactor(specularColorFactor),
+              specularColorTexture(specularColorTexture) {}
+    };
+
+    /**
+     * KHR_materials_volume extension data.
+     * https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_volume
+     */
+    struct KHRMaterialsVolume
+    {
+        /// The thickness of the volume beneath the surface in object space. Default 0.
+        GLTF_REAL_NUMBER_TYPE thicknessFactor;
+
+        std::shared_ptr<TextureInfo> thicknessTexture;
+
+        /// Mean free path for absorption, in world units. Default +Infinity.
+        GLTF_REAL_NUMBER_TYPE attenuationDistance;
+
+        /// Color that white light turns into due to absorption. Default [1, 1, 1].
+        systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> attenuationColor;
+
+        KHRMaterialsVolume(
+            GLTF_REAL_NUMBER_TYPE thicknessFactor,
+            std::shared_ptr<TextureInfo> thicknessTexture,
+            GLTF_REAL_NUMBER_TYPE attenuationDistance,
+            const systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> &attenuationColor)
+            : thicknessFactor(thicknessFactor),
+              thicknessTexture(thicknessTexture),
+              attenuationDistance(attenuationDistance),
+              attenuationColor(attenuationColor) {}
+    };
+
+    /**
+     * KHR_materials_iridescence extension data.
+     * https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_iridescence
+     */
+    struct KHRMaterialsIridescence
+    {
+        /// Strength of the thin-film layer. Default 0.
+        GLTF_REAL_NUMBER_TYPE iridescenceFactor;
+
+        std::shared_ptr<TextureInfo> iridescenceTexture;
+
+        /// Index of refraction of the thin-film layer. Default 1.3.
+        GLTF_REAL_NUMBER_TYPE iridescenceIor;
+
+        /// Minimum thickness of the thin-film layer in nm. Default 100.
+        GLTF_REAL_NUMBER_TYPE iridescenceThicknessMinimum;
+
+        /// Maximum thickness of the thin-film layer in nm. Default 400.
+        GLTF_REAL_NUMBER_TYPE iridescenceThicknessMaximum;
+
+        std::shared_ptr<TextureInfo> iridescenceThicknessTexture;
+
+        KHRMaterialsIridescence(
+            GLTF_REAL_NUMBER_TYPE iridescenceFactor,
+            std::shared_ptr<TextureInfo> iridescenceTexture,
+            GLTF_REAL_NUMBER_TYPE iridescenceIor,
+            GLTF_REAL_NUMBER_TYPE iridescenceThicknessMinimum,
+            GLTF_REAL_NUMBER_TYPE iridescenceThicknessMaximum,
+            std::shared_ptr<TextureInfo> iridescenceThicknessTexture)
+            : iridescenceFactor(iridescenceFactor),
+              iridescenceTexture(iridescenceTexture),
+              iridescenceIor(iridescenceIor),
+              iridescenceThicknessMinimum(iridescenceThicknessMinimum),
+              iridescenceThicknessMaximum(iridescenceThicknessMaximum),
+              iridescenceThicknessTexture(iridescenceThicknessTexture) {}
+    };
+
+    /**
+     * KHR_materials_anisotropy extension data.
+     * https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_anisotropy
+     */
+    struct KHRMaterialsAnisotropy
+    {
+        /// Anisotropy strength. Default 0.
+        GLTF_REAL_NUMBER_TYPE anisotropyStrength;
+
+        /// Rotation of the anisotropy in radians, counter-clockwise from the tangent. Default 0.
+        GLTF_REAL_NUMBER_TYPE anisotropyRotation;
+
+        std::shared_ptr<TextureInfo> anisotropyTexture;
+
+        KHRMaterialsAnisotropy(
+            GLTF_REAL_NUMBER_TYPE anisotropyStrength,
+            GLTF_REAL_NUMBER_TYPE anisotropyRotation,
+            std::shared_ptr<TextureInfo> anisotropyTexture)
+            : anisotropyStrength(anisotropyStrength),
+              anisotropyRotation(anisotropyRotation),
+              anisotropyTexture(anisotropyTexture) {}
+    };
+
     /**
      * The material appearance of a [Primitive].
      */
@@ -187,7 +390,7 @@ namespace systems::leal::gltf
         /// linear multipliers for the sampled texels of the emissive texture.
         systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> emissiveFactor;
 
-        /// The material’s alpha rendering mode enumeration specifying the
+        /// The material's alpha rendering mode enumeration specifying the
         /// interpretation of the alpha value of the base color.
         AlphaMode alphaMode;
 
@@ -205,6 +408,34 @@ namespace systems::leal::gltf
         /// its normals reversed before the lighting equation is evaluated.
         bool doubleSided;
 
+        // KHR material extension structs — nullptr when the extension is absent.
+        std::shared_ptr<KHRMaterialsTransmission> khrMaterialsTransmission = nullptr;
+        std::shared_ptr<KHRMaterialsClearcoat>    khrMaterialsClearcoat    = nullptr;
+        std::shared_ptr<KHRMaterialsSheen>        khrMaterialsSheen        = nullptr;
+        std::shared_ptr<KHRMaterialsSpecular>     khrMaterialsSpecular     = nullptr;
+        std::shared_ptr<KHRMaterialsVolume>       khrMaterialsVolume       = nullptr;
+        std::shared_ptr<KHRMaterialsIridescence>  khrMaterialsIridescence  = nullptr;
+        std::shared_ptr<KHRMaterialsAnisotropy>   khrMaterialsAnisotropy   = nullptr;
+
+        /// KHR_materials_unlit: when true, the material should be rendered without
+        /// lighting (unlit shading model).
+        bool khrMaterialsUnlit;
+
+        /// KHR_materials_emissive_strength: multiplier applied to the emissiveFactor.
+        /// Default value is 1.0.
+        GLTF_REAL_NUMBER_TYPE khrMaterialsEmissiveStrength;
+
+        /// KHR_materials_ior: index of refraction of the material.
+        /// Default value is 1.5.
+        GLTF_REAL_NUMBER_TYPE khrMaterialsIor;
+
+        /// KHR_materials_dispersion: strength of dispersion effect.
+        /// Default value is 0.0 (no dispersion).
+        GLTF_REAL_NUMBER_TYPE khrMaterialsDispersion;
+
+        /// KHR_xmp_json_ld: index into the top-level packets array. -1 if not set.
+        int64_t khrXmpPacket = -1;
+
         Material(
             const std::string &name,
             std::shared_ptr<PBRMetallicRoughness> pbrMetallicRoughness,
@@ -214,7 +445,11 @@ namespace systems::leal::gltf
             systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> emissiveFactor,
             AlphaMode alphaMode,
             GLTF_REAL_NUMBER_TYPE alphaCutoff,
-            bool doubleSided) : GLTFChildOfRoot(name)
+            bool doubleSided,
+            bool khrMaterialsUnlit,
+            GLTF_REAL_NUMBER_TYPE khrMaterialsEmissiveStrength,
+            GLTF_REAL_NUMBER_TYPE khrMaterialsIor,
+            GLTF_REAL_NUMBER_TYPE khrMaterialsDispersion) : GLTFChildOfRoot(name)
         {
             this->pbrMetallicRoughness = pbrMetallicRoughness;
             this->normalTexture = normalTexture;
@@ -224,6 +459,10 @@ namespace systems::leal::gltf
             this->alphaMode = alphaMode;
             this->alphaCutoff = alphaCutoff;
             this->doubleSided = doubleSided;
+            this->khrMaterialsUnlit = khrMaterialsUnlit;
+            this->khrMaterialsEmissiveStrength = khrMaterialsEmissiveStrength;
+            this->khrMaterialsIor = khrMaterialsIor;
+            this->khrMaterialsDispersion = khrMaterialsDispersion;
         }
     };
 }

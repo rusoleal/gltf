@@ -85,6 +85,9 @@ namespace systems::leal::gltf
 
         std::shared_ptr<EXTMeshGpuInstancing> extMeshGpuInstancing;
 
+        /// KHR_xmp_json_ld: index into the top-level packets array. -1 if not set.
+        int64_t khrXmpPacket = -1;
+
         Node(
             const std::string &name,
             int64_t camera,

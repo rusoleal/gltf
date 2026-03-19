@@ -1,6 +1,11 @@
 #pragma once
 
+#ifndef GLTF_REAL_NUMBER_TYPE
+#define GLTF_REAL_NUMBER_TYPE double
+#endif
+
 #include <vector>
+#include <optional>
 #include <gltf/gltf_child_of_root.hpp>
 
 namespace systems::leal::gltf
@@ -94,7 +99,7 @@ namespace systems::leal::gltf
          * this property MUST contain maximum values of accessor data with sparse
          * substitution applied.
          */
-        std::vector<uint8_t> *max;
+        std::optional<std::vector<GLTF_REAL_NUMBER_TYPE>> max;
 
         /**
          * Minimum value of each component in this accessor. Array elements MUST be
@@ -107,9 +112,43 @@ namespace systems::leal::gltf
          * this property MUST contain minimum values of accessor data with sparse
          * substitution applied.
          */
-        std::vector<uint8_t> *min;
+        std::optional<std::vector<GLTF_REAL_NUMBER_TYPE>> min;
 
-        // TODO sparse
+        /**
+         * Indices sub-object of a sparse accessor.
+         */
+        struct SparseIndices
+        {
+            uint64_t bufferView;
+            uint64_t byteOffset;
+            ComponentType componentType;
+        };
+
+        /**
+         * Values sub-object of a sparse accessor.
+         */
+        struct SparseValues
+        {
+            uint64_t bufferView;
+            uint64_t byteOffset;
+        };
+
+        /**
+         * Sparse storage of elements that deviate from their initialization value.
+         * When defined, the accessor contains [count] sparse elements, whose
+         * indices and replacement values are stored in [indices] and [values].
+         */
+        struct Sparse
+        {
+            uint64_t count;
+            SparseIndices indices;
+            SparseValues values;
+        };
+
+        /**
+         * Sparse override data for this accessor. nullptr when not sparse.
+         */
+        std::shared_ptr<Sparse> sparse = nullptr;
 
         Accessor(
             const std::string &name,
@@ -129,10 +168,5 @@ namespace systems::leal::gltf
             this->type = type;
         }
 
-        /*~Accessor() {
-            if (bufferView != nullptr) {
-                delete bufferView;
-            }
-        }*/
     };
 }

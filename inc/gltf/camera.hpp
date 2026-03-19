@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <gltf/gltf_child_of_root.hpp>
 
 namespace systems::leal::gltf
@@ -13,6 +14,8 @@ namespace systems::leal::gltf
         Camera(const std::string &name) : GLTFChildOfRoot(name)
         {
         }
+
+        virtual ~Camera() = default;
     };
 
     /**
@@ -70,7 +73,7 @@ namespace systems::leal::gltf
          * The floating-point aspect ratio of the field of view. When undefined, the
          * aspect ratio of the rendering viewport MUST be used.
          */
-        GLTF_REAL_NUMBER_TYPE *aspectRatio;
+        std::optional<GLTF_REAL_NUMBER_TYPE> aspectRatio;
 
         /**
          * The floating-point vertical field of view in radians. This value SHOULD be
@@ -83,7 +86,7 @@ namespace systems::leal::gltf
          * MUST be greater than [zNear]. If zfar is undefined, client implementations
          * SHOULD use infinite projection matrix.
          */
-        GLTF_REAL_NUMBER_TYPE *zFar;
+        std::optional<GLTF_REAL_NUMBER_TYPE> zFar;
 
         /**
          * The floating-point distance to the near clipping plane.
@@ -92,27 +95,15 @@ namespace systems::leal::gltf
 
         PerspectiveCamera(
             const std::string &name,
-            GLTF_REAL_NUMBER_TYPE *aspectRatio, 
-            GLTF_REAL_NUMBER_TYPE yFov, 
-            GLTF_REAL_NUMBER_TYPE *zFar, 
-            GLTF_REAL_NUMBER_TYPE zNear):Camera(name)
+            std::optional<GLTF_REAL_NUMBER_TYPE> aspectRatio,
+            GLTF_REAL_NUMBER_TYPE yFov,
+            std::optional<GLTF_REAL_NUMBER_TYPE> zFar,
+            GLTF_REAL_NUMBER_TYPE zNear) : Camera(name)
         {
             this->aspectRatio = aspectRatio;
             this->yFov = yFov;
             this->zFar = zFar;
             this->zNear = zNear;
-        }
-
-        ~PerspectiveCamera()
-        {
-            if (aspectRatio != nullptr)
-            {
-                delete aspectRatio;
-            }
-            if (zFar != nullptr)
-            {
-                delete zFar;
-            }
         }
     };
 }

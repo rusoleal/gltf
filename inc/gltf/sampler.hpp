@@ -68,13 +68,5 @@ namespace systems::leal::gltf
             this->wrapT = wrapT;
         }
 
-        /*~Sampler() {
-            if (magFilter != nullptr) {
-                delete magFilter;
-            }
-            if (minFilter != nullptr) {
-                delete minFilter;
-            }
-        }*/
     };
 }

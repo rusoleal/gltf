@@ -1,5 +1,6 @@
 #define _USE_MATH_DEFINES // windows specific for M_PI constants
 #include <cmath>
+#include <stdexcept>
 
 #include "utils.hpp"
 
@@ -53,26 +54,6 @@ bool endsWith(const std::string &str, const std::string &suffix) {
     return str.compare(str.length() - suffix.length(), suffix.length(), suffix) == 0;
 }
 
-systems::leal::vector_math::Vector2<GLTF_REAL_NUMBER_TYPE> *vec2FromGLTF(const nlohmann::json &data) {
-    if (!data.is_array()) {
-        return nullptr;
-    }
-    if (data.size() != 2) {
-        return nullptr;
-    }
-    return new systems::leal::vector_math::Vector2<GLTF_REAL_NUMBER_TYPE>(data[0], data[1]);
-}
-
-systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> *vec3FromGLTF(const nlohmann::json &data) {
-    if (!data.is_array()) {
-        return nullptr;
-    }
-    if (data.size() != 3) {
-        return nullptr;
-    }
-    return new systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE>(data[0], data[1], data[2]);
-}
-
 systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> vec3FromGLTF(const nlohmann::json &data, const systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> &defaultValue) {
     if (!data.is_array()) {
         return defaultValue;
@@ -81,16 +62,6 @@ systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> vec3FromGLTF(const nl
         return defaultValue;
     }
     return  { data[0], data[1], data[2] };
-}
-
-systems::leal::vector_math::Vector4<GLTF_REAL_NUMBER_TYPE> *vec4FromGLTF(const nlohmann::json &data) {
-    if (!data.is_array()) {
-        return nullptr;
-    }
-    if (data.size() != 4) {
-        return nullptr;
-    }
-    return new systems::leal::vector_math::Vector4<GLTF_REAL_NUMBER_TYPE>(data[0], data[1], data[2], data[3]);
 }
 
 systems::leal::vector_math::Vector4<GLTF_REAL_NUMBER_TYPE> vec4FromGLTF(const nlohmann::json &data, const systems::leal::vector_math::Vector4<GLTF_REAL_NUMBER_TYPE> &defaultValue) {
@@ -112,48 +83,6 @@ systems::leal::vector_math::Quaternion<GLTF_REAL_NUMBER_TYPE> quatFromGLTF(const
         return defaultValue;
     }
     return systems::leal::vector_math::Quaternion<GLTF_REAL_NUMBER_TYPE>(data[0], data[1], data[2], data[3]);
-}
-
-systems::leal::vector_math::Matrix2<GLTF_REAL_NUMBER_TYPE> *mat2FromGLTF(const nlohmann::json &data) {
-    if (!data.is_array()) {
-        return nullptr;
-    }
-    if (data.size() != 4) {
-        return nullptr;
-    }
-    auto toReturn = new systems::leal::vector_math::Matrix2<GLTF_REAL_NUMBER_TYPE>();
-    for (int a=0; a<4; a++) {
-        toReturn->data[a] = data[a];
-    }
-    return toReturn;
-}
-
-systems::leal::vector_math::Matrix3<GLTF_REAL_NUMBER_TYPE> *mat3FromGLTF(const nlohmann::json &data) {
-    if (!data.is_array()) {
-        return nullptr;
-    }
-    if (data.size() != 9) {
-        return nullptr;
-    }
-    auto toReturn = new systems::leal::vector_math::Matrix3<GLTF_REAL_NUMBER_TYPE>();
-    for (int a=0; a<9; a++) {
-        toReturn->data[a] = data[a];
-    }
-    return toReturn;
-}
-
-systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE> *mat4FromGLTF(const nlohmann::json &data) {
-    if (!data.is_array()) {
-        return nullptr;
-    }
-    if (data.size() != 16) {
-        return nullptr;
-    }
-    auto toReturn = new systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE>();
-    for (int a=0; a<16; a++) {
-        toReturn->data[a] = data[a];
-    }
-    return toReturn;
 }
 
 systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE> mat4FromGLTF(const nlohmann::json &data, const systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE> &defaultValue) {
@@ -191,15 +120,41 @@ void intListFromGLTF(std::vector<uint64_t> &output, const nlohmann::json &data) 
     }
 }
 
+std::shared_ptr<KHRTextureTransform> khrTextureTransformFromGLTF(const nlohmann::json &data) {
+    if (!data.is_object()) {
+        return nullptr;
+    }
+
+    systems::leal::vector_math::Vector2<GLTF_REAL_NUMBER_TYPE> offset(0.0, 0.0);
+    if (data.contains("offset") && data.at("offset").is_array() && data.at("offset").size() >= 2) {
+        offset = { data.at("offset")[0], data.at("offset")[1] };
+    }
+
+    GLTF_REAL_NUMBER_TYPE rotation = data.value("rotation", 0.0);
+
+    systems::leal::vector_math::Vector2<GLTF_REAL_NUMBER_TYPE> scale(1.0, 1.0);
+    if (data.contains("scale") && data.at("scale").is_array() && data.at("scale").size() >= 2) {
+        scale = { data.at("scale")[0], data.at("scale")[1] };
+    }
+
+    int64_t texCoord = data.value("texCoord", int64_t(-1));
+
+    return std::make_shared<KHRTextureTransform>(offset, rotation, scale, texCoord);
+}
+
 std::shared_ptr<TextureInfo> textureInfoFromGLTF(const nlohmann::json &data) {
     if (!data.is_object()) {
         return nullptr;
     }
 
-    return std::make_shared<TextureInfo>(
-        data["index"],
-        data.value("texCoord",0)
-    );
+    if (!data.contains("index") || !data.at("index").is_number())
+        throw std::invalid_argument("TextureInfo missing required 'index' field");
+    auto ti = std::make_shared<TextureInfo>(data.at("index"), data.value("texCoord", 0));
+    if (data.contains("extensions") && data.at("extensions").is_object() &&
+        data.at("extensions").contains("KHR_texture_transform")) {
+        ti->khrTextureTransform = khrTextureTransformFromGLTF(data.at("extensions").at("KHR_texture_transform"));
+    }
+    return ti;
 }
 
 AlphaMode alphaModeFromGLTF(const nlohmann::json &data) {

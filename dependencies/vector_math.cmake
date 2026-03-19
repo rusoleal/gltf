@@ -8,7 +8,7 @@ FetchContent_Declare(
     extern_vector_math
 
     GIT_REPOSITORY https://github.com/rusoleal/vector_math
-    GIT_TAG        v0.1.0
+    GIT_TAG        v0.3.4
 )
 
 FetchContent_GetProperties(extern_vector_math)

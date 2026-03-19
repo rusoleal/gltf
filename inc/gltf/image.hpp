@@ -50,17 +50,6 @@ namespace systems::leal::gltf
             this->data = data;
         }
 
-        /*~Image() {
-            if (uri != nullptr) {
-                delete uri;
-            }
-            if (mimeType != nullptr) {
-                delete mimeType;
-            }
-            if (bufferView != nullptr) {
-                delete bufferView;
-            }
-        }*/
     };
 
 }

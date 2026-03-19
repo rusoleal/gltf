@@ -1,8 +1,11 @@
 #pragma once
 
+#include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 #include <gltf/gltf_child_of_root.hpp>
+#include <gltf/extensions/khr_animation_pointer.hpp>
 
 namespace systems::leal::gltf
 {
@@ -14,10 +17,10 @@ namespace systems::leal::gltf
     {
 
         /**
-         * The index of the [Node] to animate. When undefined, the animated object
-         * MAY be defined by an extension.
+         * The index of the [Node] to animate. When undefined (KHR_animation_pointer),
+         * this value is -1.
          */
-        uint64_t node;
+        int64_t node;
 
         /**
          * The name of the node’s TRS property to animate, or the "weights" of the
@@ -26,8 +29,13 @@ namespace systems::leal::gltf
          * Z axes. For the "rotation" property, the values are a quaternion in the
          * order (x, y, z, w), where w is the scalar. For the "scale" property, the
          * values are the scaling factors along the X, Y, and Z axes.
+         * When KHR_animation_pointer is used, this is "pointer".
          */
         std::string path;
+
+        /// KHR_animation_pointer: JSON pointer identifying the animated property.
+        /// Non-null only when path == "pointer".
+        std::shared_ptr<KHRAnimationPointer> khrAnimationPointer = nullptr;
     };
 
     /**
