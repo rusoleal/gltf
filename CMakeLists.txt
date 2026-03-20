@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22.1)
 
-project(gltf VERSION 0.3.1)
+project(gltf VERSION 0.3.2)
 
 include(CTest)
 
@@ -25,8 +25,9 @@ include(dependencies/meshoptimizer.cmake)
 add_library(${PROJECT_NAME} SHARED
     src/gltf.cpp src/base64.cpp src/utils.cpp
 )
-target_link_libraries(${PROJECT_NAME} PRIVATE
+target_link_libraries(${PROJECT_NAME} PUBLIC
     vector_math
+PRIVATE
     draco_static
     meshoptimizer
 )

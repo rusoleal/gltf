@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.2] - 2026-03-20
+
+### Changed
+- `vector_math` changed to `PUBLIC` in `target_link_libraries` so its types (which appear in the public API) are correctly propagated to consuming targets.
+- Removed redundant `$<BUILD_INTERFACE:${extern_vector_math_SOURCE_DIR}/inc>` from `target_include_directories`; the include path is now propagated transitively via the `PUBLIC` link to `vector_math`.
+
 ## [0.3.1] - 2026-03-20
 
 ### Fixed
