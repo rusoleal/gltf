@@ -22,7 +22,7 @@ if(NOT extern_draco_POPULATED)
     message(STATUS "Fetching draco...")
     FetchContent_Populate(extern_draco)
     include_directories(${extern_draco_SOURCE_DIR}/src)
-    include_directories(${extern_draco_BINARY_DIR})
+    include_directories(${CMAKE_BINARY_DIR})
     add_subdirectory(
         ${extern_draco_SOURCE_DIR}
         ${extern_draco_BINARY_DIR}

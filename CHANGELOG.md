@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.1] - 2026-03-20
+
+### Fixed
+- `draco_features.h` not found when consuming the package as a FetchContent subdependency. Draco generates this header into `${CMAKE_BINARY_DIR}` (the top-level binary directory), but `dependencies/draco.cmake` was adding `${extern_draco_BINARY_DIR}` (Draco's own nested build dir) to the include path instead. The mismatch was hidden when building gltf standalone because `PROJECT_BINARY_DIR` happened to equal `CMAKE_BINARY_DIR`. Corrected to `${CMAKE_BINARY_DIR}`.
+
 ## [0.3.0] - 2026-03-19
 
 ### Added
