@@ -28,4 +28,10 @@ if(NOT extern_draco_POPULATED)
         ${extern_draco_BINARY_DIR}
         EXCLUDE_FROM_ALL
     )
+
+    # On MSVC, draco names its library target 'draco' (not 'draco_static').
+    # Create an alias so gltf's target_link_libraries(... draco_static) works.
+    if(MSVC AND TARGET draco AND NOT TARGET draco_static)
+        add_library(draco_static ALIAS draco)
+    endif()
 endif()

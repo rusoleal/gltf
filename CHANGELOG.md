@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.3] - 2026-03-23
+
+### Fixed
+- On MSVC, draco builds a target named `draco` instead of `draco_static`. Added a CMake alias so `target_link_libraries(... draco_static)` resolves correctly on Windows.
+
 ## [0.3.2] - 2026-03-20
 
 ### Changed
