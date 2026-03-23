@@ -8,7 +8,7 @@
 using namespace systems::leal::gltf;
 
 std::string loadFileAsString(const std::string &filename) {
-    std::ifstream t(filename);
+    std::ifstream t(filename, std::ios::binary);
     std::string str;
 
     t.seekg(0, std::ios::end);

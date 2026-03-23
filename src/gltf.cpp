@@ -67,6 +67,7 @@ GLTF::GLTF(
     this->cameras = cameras;
     this->images = images;
     this->textures = textures;
+    this->scene = scene;
     this->scenes = scenes;
     this->nodes = nodes;
     this->samplers = samplers;

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.4] - 2026-03-23
+
+### Fixed
+- `M_PI_4` undeclared on MSVC: `_USE_MATH_DEFINES` moved from header `#define` (order-dependent) to a CMake `PUBLIC` compile definition, ensuring it is active before any header is processed in every translation unit.
+- `gltf.lib` import library not generated on Windows: added `WINDOWS_EXPORT_ALL_SYMBOLS ON` so MSVC produces the import library required for linking against the shared library.
+- `GLTF::scene` field never assigned in constructor despite being a constructor parameter, leaving it uninitialized (visible as garbage on MSVC debug builds).
+- `loadFileAsString` opened files in text mode, corrupting binary `.glb` data on Windows due to `\r\n` → `\n` translation and causing the GLB size check to fail. Fixed by opening with `std::ios::binary`.
+
 ## [0.3.3] - 2026-03-23
 
 ### Fixed

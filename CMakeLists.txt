@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22.1)
 
-project(gltf VERSION 0.3.3)
+project(gltf VERSION 0.3.4)
 
 include(CTest)
 
@@ -25,6 +25,7 @@ include(dependencies/meshoptimizer.cmake)
 add_library(${PROJECT_NAME} SHARED
     src/gltf.cpp src/base64.cpp src/utils.cpp
 )
+set_target_properties(${PROJECT_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 target_link_libraries(${PROJECT_NAME} PUBLIC
     vector_math
 PRIVATE
@@ -33,6 +34,7 @@ PRIVATE
 )
 target_compile_definitions(${PROJECT_NAME} PUBLIC
     GLTF_REAL_NUMBER_TYPE=${GLTF_REAL_NUMBER_TYPE}
+    $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
 )
 
 include(GNUInstallDirs)
