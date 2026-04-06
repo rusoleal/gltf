@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.5] - 2026-04-06
+
+### Changed
+- Unity build enabled (`UNITY_BUILD ON`) for both the `gltf` library and `gltf_test` targets.
+- Removed duplicate `findNode` / `findMaterial` helper definitions from `test/extensions.cpp` (now shared from `test/main.cpp`).
+- `findNode` / `findMaterial` in `test/main.cpp` marked `static` for correct internal linkage.
+
 ## [0.3.4] - 2026-03-23
 
 ### Fixed

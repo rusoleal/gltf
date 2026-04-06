@@ -31,19 +31,6 @@ static std::shared_ptr<GLTF> loadFile(const std::string &path)
     return GLTF::loadGLTF(str);
 }
 
-static const Material *findMaterial(const std::shared_ptr<GLTF> &g, const std::string &name)
-{
-    for (const auto &m : *g->materials)
-        if (m.name == name) return &m;
-    return nullptr;
-}
-
-static const Node *findNode(const std::shared_ptr<GLTF> &g, const std::string &name)
-{
-    for (const auto &n : *g->nodes)
-        if (n.name == name) return &n;
-    return nullptr;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1.  KHR_lights_punctual

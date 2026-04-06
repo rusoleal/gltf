@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22.1)
 
-project(gltf VERSION 0.3.4)
+project(gltf VERSION 0.3.5)
 
 include(CTest)
 
@@ -25,7 +25,10 @@ include(dependencies/meshoptimizer.cmake)
 add_library(${PROJECT_NAME} SHARED
     src/gltf.cpp src/base64.cpp src/utils.cpp
 )
-set_target_properties(${PROJECT_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    WINDOWS_EXPORT_ALL_SYMBOLS ON
+    UNITY_BUILD ON
+)
 target_link_libraries(${PROJECT_NAME} PUBLIC
     vector_math
 PRIVATE
@@ -142,6 +145,7 @@ if (GLTF_BUILD_TEST)
         test/extensions.cpp
         test/validation.cpp
     )
+    set_target_properties(${PROJECT_NAME}_test PROPERTIES UNITY_BUILD ON)
     target_link_libraries(${PROJECT_NAME}_test
         ${PROJECT_NAME}
         gtest

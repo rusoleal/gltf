@@ -21,7 +21,7 @@ std::string loadFileAsString(const std::string &filename) {
 }
 
 // Helper: find a node by name, returns nullptr if not found
-const Node* findNode(const std::shared_ptr<GLTF> &asset, const std::string &name) {
+static const Node* findNode(const std::shared_ptr<GLTF> &asset, const std::string &name) {
     for (const auto &node : *asset->nodes) {
         if (node.name == name) return &node;
     }
@@ -29,7 +29,7 @@ const Node* findNode(const std::shared_ptr<GLTF> &asset, const std::string &name
 }
 
 // Helper: find a material by name, returns nullptr if not found
-const Material* findMaterial(const std::shared_ptr<GLTF> &asset, const std::string &name) {
+static const Material* findMaterial(const std::shared_ptr<GLTF> &asset, const std::string &name) {
     for (const auto &mat : *asset->materials) {
         if (mat.name == name) return &mat;
     }
