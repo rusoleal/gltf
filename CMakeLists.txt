@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.22.1)
 
-project(gltf VERSION 0.3.5)
+project(gltf VERSION 0.3.6)
 
 include(CTest)
 
 configure_file(src/gltf_config.h.in gltf_config.h)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 option(GLTF_BUILD_TEST  "Enable building tests"            OFF)
 option(GLTF_BUILD_FUZZ  "Enable building libFuzzer targets" OFF)
