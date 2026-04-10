@@ -43,9 +43,20 @@ cd build && ./gltf_test --gtest_filter=AlphaBlendModeTestGLB.*
 ## Architecture
 
 ### Public API (`inc/gltf/gltf.hpp`)
-- `GLTF::loadGLTF(const std::string &data)` — parse JSON `.gltf` string
+- `GLTF::loadGLTF(const std::string &data, callback)` — parse JSON `.gltf` string with external resource loading
 - `GLTF::loadGLB(uint8_t *data, uint64_t size)` — parse binary `.glb` data
 - `GLTF::getRuntimeInfo(uint64_t sceneIndex)` — get scene runtime metadata
+
+The callback for `loadGLTF` receives a URI and returns `std::future<std::vector<uint8_t>>`:
+```cpp
+auto gltf = GLTF::loadGLTF(json, [](const std::string& uri) {
+    return std::async(std::launch::deferred, [&uri]() {
+        return loadFile(uri);  // your file loading function
+    });
+});
+```
+
+Both `loadGLTF` and `loadGLB` automatically decompress Draco and meshopt extensions.
 
 ### Data Flow
 ```

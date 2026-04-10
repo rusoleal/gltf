@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.4.0] - 2026-04-10
+
+### Added
+- New `GLTF::loadGLTF()` overload that accepts a callback for loading external resources:
+  ```cpp
+  std::shared_ptr<GLTF> loadGLTF(
+      const std::string &data,
+      std::function<std::future<std::vector<uint8_t>>(const std::string &uri)> loadCallback);
+  ```
+  - The callback is invoked for each external buffer/image URI
+  - Returns `std::future` to support both sync and async loading patterns
+  - Automatically decompresses Draco and meshopt extensions after all resources are loaded
+
+### Fixed
+- Fixed matrix loading: GLTF stores matrices in column-major order, but `vector_math::Matrix4` uses row-major storage. `mat4FromGLTF()` now correctly transposes matrices during load.
+- Updated `Node::matrix` documentation to clarify row-major storage format (`data[row*4+col]`).
+
+### Changed
+- **DEPRECATED**: `GLTF::loadGLTF(const std::string &data)` is now deprecated. Use the new callback-based overload instead.
+  - Old method does not load external resources or perform automatic decompression
+  - To migrate: add a callback that returns `std::future<std::vector<uint8_t>>` for each URI
+- **BREAKING**: `GLTF::decompressDraco()` and `GLTF::decompressMeshopt()` are now private.
+  - Decompression is automatically handled by all load methods
+  - No manual decompression required when using `loadGLTF` with callback or `loadGLB`
+- Minor CI workflow updates.
+
 ## [0.3.6] - 2026-04-08
 
 - Bump `vector_math` dependency to version v0.3.5

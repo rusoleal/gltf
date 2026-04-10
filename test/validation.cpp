@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <future>
 #include <gtest/gtest.h>
 #include <gltf/gltf.hpp>
 
@@ -19,7 +20,12 @@ using namespace systems::leal::gltf;
 
 static std::shared_ptr<GLTF> parse(const std::string &json)
 {
-    return GLTF::loadGLTF(json);
+    // Self-contained test glTF (no external resources)
+    return GLTF::loadGLTF(json, [](const std::string &) {
+        return std::async(std::launch::deferred, []() {
+            return std::vector<uint8_t>{};
+        });
+    });
 }
 
 // Minimal valid glTF with a single scene→node→mesh→primitive chain so that

@@ -9,6 +9,8 @@
 #endif
 
 #include <cstdint>
+#include <future>
+#include <functional>
 #include <memory>
 #include <vector>
 #include <array>
@@ -78,23 +80,47 @@ namespace systems::leal::gltf
 
         std::string toString();
 
+        /**
+         * Load a glTF asset from JSON string.
+         * 
+         * @deprecated Use loadGLTF(const std::string&, std::function<...>) instead.
+         * This method does not load external resources or perform decompression.
+         * For self-contained glTF (embedded data URIs only), use a no-op callback:
+         *   loadGLTF(data, [](const std::string&) { 
+         *       return std::future<std::vector<uint8_t>>{}; 
+         *   })
+         */
+        [[deprecated("Use loadGLTF with callback instead")]]
         static std::shared_ptr<GLTF> loadGLTF(const std::string &data);
-        static std::shared_ptr<GLTF> loadGLB(uint8_t *data, uint64_t size);
 
         /**
+         * Load a glTF asset from JSON string with external resource loading.
+         * The provided callback is invoked for each external URI that needs to be loaded.
+         * The callback returns a future to support both sync and async loading patterns.
+         * After all resources are loaded and futures resolved, automatic decompression is performed.
+         *
+         * @param data JSON string containing the glTF asset
+         * @param loadCallback Callback function that receives a URI and returns a future with the loaded data
+         * @return Loaded GLTF asset with all external resources and decompression applied
+         */
+        static std::shared_ptr<GLTF> loadGLTF(
+            const std::string &data,
+            std::function<std::future<std::vector<uint8_t>>(const std::string &uri)> loadCallback);
+
+        static std::shared_ptr<GLTF> loadGLB(uint8_t *data, uint64_t size);
+
+    private:
+        /**
          * Decompress any KHR_draco_mesh_compression primitives whose buffer
-         * data is already available. Call this after manually filling
-         * GLTF::buffers[n].data for URI-referenced external buffers.
+         * data is already available. Called automatically by load methods.
          */
         static void decompressDraco(std::shared_ptr<GLTF> &gltf);
 
         /**
          * Decompress any EXT_meshopt_compression buffer views whose buffer
-         * data is already available. Called automatically after loading.
+         * data is already available. Called automatically by load methods.
          */
         static void decompressMeshopt(std::shared_ptr<GLTF> &gltf);
-
-    private:
         void updateRuntimeInfoWithMaterial(std::shared_ptr<RuntimeInfo> runtimeInfo, Material &material);
         void updateRuntimeInfoWithNode(std::shared_ptr<RuntimeInfo> runtimeInfo, Node &node, std::unordered_set<uint64_t> &visited);
         GLTF(

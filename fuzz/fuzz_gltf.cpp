@@ -10,8 +10,10 @@
  */
 
 #include <cstdint>
+#include <future>
 #include <stdexcept>
 #include <string>
+#include <vector>
 #include <gltf/gltf.hpp>
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
@@ -19,7 +21,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     try
     {
         std::string json(reinterpret_cast<const char *>(data), size);
-        auto gltf = systems::leal::gltf::GLTF::loadGLTF(json);
+        // Fuzzing uses no-op callback since we're testing the parser, not external loading
+        auto gltf = systems::leal::gltf::GLTF::loadGLTF(json, [](const std::string &) {
+            return std::async(std::launch::deferred, []() {
+                return std::vector<uint8_t>{};
+            });
+        });
 
         // Also exercise getRuntimeInfo so the traversal code is fuzzed.
         if (gltf && gltf->scenes && !gltf->scenes->empty())

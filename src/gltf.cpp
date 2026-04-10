@@ -2,7 +2,10 @@
 #include <cmath>
 
 #include <exception>
+#include <future>
 #include <sstream>
+#include <unordered_map>
+#include <unordered_set>
 #include <gltf/gltf.hpp>
 #include "json.hpp"
 #include "base64.h"
@@ -1494,6 +1497,85 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
     GLTF::decompressMeshopt(toReturn);
 
     return toReturn;
+}
+
+std::shared_ptr<GLTF> GLTF::loadGLTF(
+    const std::string &data,
+    std::function<std::future<std::vector<uint8_t>>(const std::string &uri)> loadCallback)
+{
+    // First, parse the JSON without external resources
+    auto gltf = loadGLTF(data);
+
+    // Collect unique URIs that need external loading and map them to buffers/images
+    std::unordered_set<std::string> uniqueUris;
+
+    for (const auto &buffer : *gltf->buffers)
+    {
+        if (!buffer.uri.empty() && buffer.data.empty())
+        {
+            uniqueUris.insert(buffer.uri);
+        }
+    }
+
+    for (const auto &image : *gltf->images)
+    {
+        if (!image.uri.empty() && image.data.empty())
+        {
+            uniqueUris.insert(image.uri);
+        }
+    }
+
+    if (uniqueUris.empty())
+    {
+        // No external resources to load, decompression already done by loadGLTF
+        return gltf;
+    }
+
+    // Launch async loading for all unique URIs
+    std::unordered_map<std::string, std::future<std::vector<uint8_t>>> loadingFutures;
+    for (const auto &uri : uniqueUris)
+    {
+        loadingFutures[uri] = loadCallback(uri);
+    }
+
+    // Wait for all futures to complete and collect results
+    std::unordered_map<std::string, std::vector<uint8_t>> loadedData;
+    for (auto &[uri, future] : loadingFutures)
+    {
+        loadedData[uri] = future.get();
+    }
+
+    // Assign loaded data to buffers
+    for (auto &buffer : *gltf->buffers)
+    {
+        if (!buffer.uri.empty() && buffer.data.empty())
+        {
+            auto it = loadedData.find(buffer.uri);
+            if (it != loadedData.end())
+            {
+                buffer.data = std::move(it->second);
+            }
+        }
+    }
+
+    // Assign loaded data to images
+    for (auto &image : *gltf->images)
+    {
+        if (!image.uri.empty() && image.data.empty())
+        {
+            auto it = loadedData.find(image.uri);
+            if (it != loadedData.end())
+            {
+                image.data = std::move(it->second);
+            }
+        }
+    }
+
+    // Now that external buffer data is available, decompress extensions
+    GLTF::decompressDraco(gltf);
+    GLTF::decompressMeshopt(gltf);
+
+    return gltf;
 }
 
 std::string GLTF::toString()

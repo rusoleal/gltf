@@ -45,7 +45,11 @@ namespace systems::leal::gltf
         int64_t skin;
 
         /**
-         * A floating-point 4x4 transformation matrix stored in column-major order.
+         * A floating-point 4x4 transformation matrix.
+         * 
+         * GLTF stores matrices in column-major order, but this library converts
+         * them to row-major (matching vector_math::Matrix4) during loading.
+         * The matrix uses row-major storage: data[row*4+col].
          */
         systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE> matrix;
 

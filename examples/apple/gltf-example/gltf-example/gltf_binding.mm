@@ -1,6 +1,8 @@
 
 #import "gltf_binding.h"
 #import "gltf/gltf.hpp"
+#include <future>
+#include <vector>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -17,10 +19,38 @@ using namespace systems::leal::gltf;
 
 -(id) initWithString:(NSString *)data
 {
+    // Use no-op resource loader for self-contained glTF
+    return [self initWithString:data resourceLoader:nil];
+}
+
+-(id) initWithString:(NSString *)data resourceLoader:(GLTFResourceLoader _Nullable)loader
+{
     if (self=[super init]) {
 
         try {
-            self.native = GLTF::loadGLTF(data.UTF8String);
+            if (loader) {
+                // Use callback-based loader
+                GLTFResourceLoader loaderCopy = [loader copy];
+                self.native = GLTF::loadGLTF(data.UTF8String, [loaderCopy](const std::string &uri) {
+                    return std::async(std::launch::deferred, [loaderCopy, uri]() {
+                        NSString *nsUri = [NSString stringWithUTF8String:uri.c_str()];
+                        NSData *loaded = loaderCopy(nsUri);
+                        std::vector<uint8_t> result;
+                        if (loaded) {
+                            const uint8_t *bytes = (const uint8_t *)loaded.bytes;
+                            result.assign(bytes, bytes + loaded.length);
+                        }
+                        return result;
+                    });
+                });
+            } else {
+                // No resource loader - use no-op callback for inline/embedded glTF
+                self.native = GLTF::loadGLTF(data.UTF8String, [](const std::string &) {
+                    return std::async(std::launch::deferred, []() {
+                        return std::vector<uint8_t>{};
+                    });
+                });
+            }
             if (self.native == nullptr) {
                 return nil;
             }

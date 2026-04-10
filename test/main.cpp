@@ -2,6 +2,7 @@
 #include <streambuf>
 #include <cstdio>
 #include <algorithm>
+#include <future>
 #include <gtest/gtest.h>
 #include <gltf/gltf.hpp>
 
@@ -18,6 +19,43 @@ std::string loadFileAsString(const std::string &filename) {
     str.assign((std::istreambuf_iterator<char>(t)),
                 std::istreambuf_iterator<char>());
     return str;
+}
+
+// Shared helper: load file as bytes (used by other test files)
+std::vector<uint8_t> loadFileAsBytes(const std::string &filename) {
+    std::ifstream t(filename, std::ios::binary);
+    if (!t.good()) {
+        return {};  // Return empty vector if file can't be opened
+    }
+    std::vector<uint8_t> data;
+    t.seekg(0, std::ios::end);
+    auto size = t.tellg();
+    if (size <= 0) {
+        return {};  // Return empty vector if file is empty or error
+    }
+    data.reserve(static_cast<size_t>(size));
+    t.seekg(0, std::ios::beg);
+    data.assign((std::istreambuf_iterator<char>(t)),
+                std::istreambuf_iterator<char>());
+    return data;
+}
+
+// Helper: load glTF with external resource support (sync file loading)
+static std::shared_ptr<GLTF> loadGLTFWithFiles(const std::string &jsonData) {
+    return GLTF::loadGLTF(jsonData, [](const std::string &uri) {
+        return std::async(std::launch::deferred, [&uri]() {
+            return loadFileAsBytes(uri);
+        });
+    });
+}
+
+// Helper: load self-contained glTF (inline base64 data URIs only)
+static std::shared_ptr<GLTF> loadGLTFInline(const std::string &jsonData) {
+    return GLTF::loadGLTF(jsonData, [](const std::string &) {
+        return std::async(std::launch::deferred, []() {
+            return std::vector<uint8_t>{};
+        });
+    });
 }
 
 // Helper: find a node by name, returns nullptr if not found
@@ -52,7 +90,7 @@ class AlphaBlendModeTest: public testing::Test {
 
   AlphaBlendModeTest() {
     auto result = loadFileAsString("AlphaBlendModeTest.gltf");
-    asset = GLTF::loadGLTF(result);
+    asset = loadGLTFWithFiles(result);
   }
 };
 
@@ -76,7 +114,7 @@ class AlphaBlendModeTestEmbedded: public testing::Test {
   std::shared_ptr<GLTF> asset;
 
   AlphaBlendModeTestEmbedded() {
-    asset = GLTF::loadGLTF(kEmbeddedGLTF);
+    asset = loadGLTFInline(kEmbeddedGLTF);
   }
 };
 

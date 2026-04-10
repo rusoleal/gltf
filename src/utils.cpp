@@ -92,9 +92,15 @@ systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE> mat4FromGLTF(const nl
     if (data.size() != 16) {
         return defaultValue;
     }
+    // GLTF stores matrices in column-major order, but vector_math::Matrix4
+    // uses row-major storage (data[row*4+col]). Transpose during load.
     systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE> toReturn;
-    for (int a=0; a<16; a++) {
-        toReturn.data[a] = data[a];
+    for (int row = 0; row < 4; row++) {
+        for (int col = 0; col < 4; col++) {
+            // GLTF column-major: index = col*4 + row
+            // vector_math row-major: index = row*4 + col
+            toReturn.data[row*4 + col] = data[col*4 + row];
+        }
     }
     return toReturn;
 }

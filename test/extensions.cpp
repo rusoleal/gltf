@@ -10,6 +10,7 @@
 #include <streambuf>
 #include <limits>
 #include <cstring>
+#include <future>
 #include <gtest/gtest.h>
 #include <gltf/gltf.hpp>
 #include <meshoptimizer.h>
@@ -18,17 +19,34 @@ using namespace systems::leal::gltf;
 
 // ── small helpers ─────────────────────────────────────────────────────────────
 
+// loadFileAsBytes is defined in main.cpp and shared across test files
+
 static std::shared_ptr<GLTF> loadInline(const std::string &json)
 {
-    return GLTF::loadGLTF(json);
+    // Self-contained glTF (inline base64 data URIs only)
+    return GLTF::loadGLTF(json, [](const std::string &) {
+        return std::async(std::launch::deferred, []() {
+            return std::vector<uint8_t>{};
+        });
+    });
 }
 
 static std::shared_ptr<GLTF> loadFile(const std::string &path)
 {
     std::ifstream t(path);
+    if (!t.good()) {
+        return nullptr;  // Return null if file can't be opened
+    }
     std::string str((std::istreambuf_iterator<char>(t)),
                      std::istreambuf_iterator<char>());
-    return GLTF::loadGLTF(str);
+    if (str.empty()) {
+        return nullptr;  // Return null if file is empty
+    }
+    return GLTF::loadGLTF(str, [](const std::string &uri) {
+        return std::async(std::launch::deferred, [&uri]() {
+            return loadFileAsBytes(uri);
+        });
+    });
 }
 
 
@@ -1511,15 +1529,8 @@ TEST_F(MaterialsVariantsShoeSampleTest, PrimitivesHaveMappings)
 }
 
 // ── AvocadoDraco ─────────────────────────────────────────────────────────────
-// Avocado (glTF-Draco variant). The model uses an external .bin buffer that
-// the library does not load automatically, so we read it manually and call
-// GLTF::decompressDraco() to trigger decompression before asserting results.
-
-static std::vector<uint8_t> readBinaryFile(const std::string &path)
-{
-    std::ifstream f(path, std::ios::binary);
-    return {std::istreambuf_iterator<char>(f), {}};
-}
+// Avocado (glTF-Draco variant). Uses external .bin buffer with Draco compression.
+// The callback-based loader automatically loads external buffers and decompresses.
 
 class AvocadoDracoSampleTest : public testing::Test {
 protected:
@@ -1531,16 +1542,9 @@ protected:
         if (!fileExists("AvocadoDraco.gltf") || !fileExists("Avocado.bin"))
             return;
 
+        // Use callback-based loader - decompression happens automatically
         asset = loadFile("AvocadoDraco.gltf");
-
-        // Load the external Draco buffer and inject it before decompressing.
-        auto binData = readBinaryFile("Avocado.bin");
-        if (!binData.empty() && !asset->buffers->empty())
-        {
-            (*asset->buffers)[0].data = std::move(binData);
-            GLTF::decompressDraco(asset);
-            available = true;
-        }
+        available = (asset != nullptr && !asset->buffers->empty());
     }
 };
 
@@ -1775,16 +1779,9 @@ protected:
         if (!fileExists("BrainStem.gltf") || !fileExists("BrainStem.bin"))
             return;
 
+        // Use callback-based loader - decompression happens automatically
         asset = loadFile("BrainStem.gltf");
-
-        // Inject the external compressed buffer and trigger decompression.
-        auto binData = readBinaryFile("BrainStem.bin");
-        if (!binData.empty() && !asset->buffers->empty())
-        {
-            (*asset->buffers)[0].data = std::move(binData);
-            GLTF::decompressMeshopt(asset);
-            available = true;
-        }
+        available = (asset != nullptr && !asset->buffers->empty());
     }
 };
 

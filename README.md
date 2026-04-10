@@ -5,22 +5,42 @@ A c++ package that allows loading .gltf and .glb (glTF binary format) files acco
 ## Public API
 
 ```cpp
-// Parse a JSON .gltf string (external buffers must be filled manually afterwards).
-static std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data);
+// Parse a JSON .gltf string with external resource loading via callback.
+// The callback receives a URI and returns a future with the loaded data.
+// After loading, Draco/meshopt extensions are automatically decompressed.
+static std::shared_ptr<GLTF> GLTF::loadGLTF(
+    const std::string &data,
+    std::function<std::future<std::vector<uint8_t>>(const std::string &uri)> loadCallback);
 
 // Parse a binary .glb file given a raw byte buffer and its size in bytes.
+// Draco/meshopt extensions are automatically decompressed.
 static std::shared_ptr<GLTF> GLTF::loadGLB(uint8_t *data, uint64_t size);
 
 // Returns which buffers and images are required to render a scene.
 // Returns nullptr if sceneIndex is out of range.
 std::shared_ptr<RuntimeInfo> GLTF::getRuntimeInfo(uint64_t sceneIndex);
+```
 
-// Decompress KHR_draco_mesh_compression primitives whose buffer data is available.
-// Call this after manually filling GLTF::buffers[n].data for URI-referenced buffers.
-static void GLTF::decompressDraco(std::shared_ptr<GLTF> &gltf);
+### Loading external resources
 
-// Decompress EXT_meshopt_compression buffer views whose buffer data is available.
-static void GLTF::decompressMeshopt(std::shared_ptr<GLTF> &gltf);
+When loading a `.gltf` file that references external buffers or images by URI, provide a callback:
+
+```cpp
+auto gltf = GLTF::loadGLTF(jsonString, [](const std::string& uri) {
+    return std::async(std::launch::deferred, [&uri]() {
+        return loadFile(uri);  // your file loading function
+    });
+});
+```
+
+For self-contained glTF with embedded data URIs (no external files):
+
+```cpp
+auto gltf = GLTF::loadGLTF(jsonString, [](const std::string&) {
+    return std::async(std::launch::deferred, []() {
+        return std::vector<uint8_t>{};  // no external resources
+    });
+});
 ```
 
 ### Error handling
@@ -31,9 +51,9 @@ Both `loadGLTF` and `loadGLB` throw `std::invalid_argument` on malformed or unsu
 
 Indices that are not traversed by `getRuntimeInfo` (e.g. animation targets, skin references, camera indices) are not validated at runtime — the caller is responsible for bounds-checking those before use.
 
-### External buffers
+### External buffers and images
 
-When loading a `.gltf` file that references external binary files by URI (not embedded `data:` URIs), the library constructs `GLTF::buffers` with empty `data` vectors. The caller is responsible for loading each file and filling `buffer.data` before calling `decompressDraco` / `decompressMeshopt` if those extensions are used.
+The callback-based `loadGLTF` automatically handles external resource loading. The callback is invoked for each unique external URI found in buffers and images. The library waits for all futures to complete, assigns the loaded data, and then automatically decompresses any Draco or meshopt extensions. No manual decompression is required.
 
 ### Thread safety
 
