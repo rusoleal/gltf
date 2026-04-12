@@ -2,6 +2,12 @@ cmake_minimum_required(VERSION 3.5.0 FATAL_ERROR)
 
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
+# Skip if vector_math target is already defined (e.g., by parent project)
+if(TARGET vector_math)
+    message(STATUS "vector_math target already exists, skipping FetchContent")
+    return()
+endif()
+
 include(FetchContent)
 
 FetchContent_Declare(

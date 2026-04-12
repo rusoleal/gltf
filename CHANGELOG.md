@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.4.1] - 2026-04-12
+- prevent fetch vector_math if already fetched.
+
 ## [0.4.0] - 2026-04-10
 
 ### Added
