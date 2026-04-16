@@ -2,6 +2,15 @@
 
 A c++ package that allows loading .gltf and .glb (glTF binary format) files according to the [glTF 2.0 specification.](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html)
 
+## 🚀 Part of the Campello Engine
+
+This project is a module within the **Campello** ecosystem.
+
+👉 Main repository: https://github.com/rusoleal/campello
+
+Campello is a modular, composable game engine built as a collection of independent libraries.
+Each module is designed to work standalone, but integrates seamlessly into the engine runtime.
+
 ## Public API
 
 ```cpp
