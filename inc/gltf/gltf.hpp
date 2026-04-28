@@ -33,6 +33,7 @@
 #include <gltf/extensions/khr_materials_variants.hpp>
 #include <gltf/extensions/khr_draco_mesh_compression.hpp>
 #include <gltf/extensions/ext_meshopt_compression.hpp>
+#include <gltf/extensions/khr_texture_procedurals.hpp>
 
 namespace systems::leal::gltf
 {
@@ -45,7 +46,7 @@ namespace systems::leal::gltf
     struct GLTF
     {
 
-        static const std::array<char const *, 23> implementedExtensions;
+        static const std::array<char const *, 24> implementedExtensions;
 
         std::shared_ptr<std::vector<Buffer>> buffers;
         std::shared_ptr<std::vector<BufferView>> bufferViews;
@@ -73,6 +74,9 @@ namespace systems::leal::gltf
 
         /// KHR_xmp_json_ld: packet index for the asset object itself. -1 if not set.
         int64_t khrXmpAssetPacket = -1;
+
+        /// KHR_texture_procedurals: root-level procedural graphs and definitions. nullptr if not present.
+        std::shared_ptr<KHRTextureProcedurals> khrTextureProcedurals = nullptr;
 
         ~GLTF();
 
@@ -138,7 +142,8 @@ namespace systems::leal::gltf
             std::shared_ptr<std::vector<Material>> materials,
             std::shared_ptr<std::vector<Animation>> animations,
             std::shared_ptr<std::vector<Skin>> skins,
-            std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual);
+            std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual,
+            std::shared_ptr<KHRTextureProcedurals> khrTextureProcedurals);
     };
 
     std::string getVersion();

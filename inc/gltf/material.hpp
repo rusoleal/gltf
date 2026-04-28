@@ -5,6 +5,7 @@
 #include <vector_math/vector4.hpp>
 #include <gltf/gltf_child_of_root.hpp>
 #include <gltf/extensions/khr_texture_transform.hpp>
+#include <gltf/extensions/khr_texture_procedurals.hpp>
 
 namespace systems::leal::gltf
 {
@@ -52,6 +53,9 @@ namespace systems::leal::gltf
 
         /// KHR_texture_transform extension data. nullptr if not present.
         std::shared_ptr<KHRTextureTransform> khrTextureTransform = nullptr;
+
+        /// KHR_texture_procedurals extension data. nullptr if not present.
+        std::shared_ptr<KHRTextureProceduralsTextureInfo> khrTextureProcedurals = nullptr;
 
         TextureInfo(uint64_t index, uint64_t texCoord)
         {

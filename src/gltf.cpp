@@ -21,7 +21,7 @@ static constexpr uint64_t GLTF_MAX_ARRAY_ELEMENTS  = 65536;
 static constexpr uint64_t GLTF_MAX_BUFFER_BYTE_LENGTH = 2ULL * 1024 * 1024 * 1024; // 2 GB
 
 
-const std::array<char const *, 23> GLTF::implementedExtensions = {
+const std::array<char const *, 24> GLTF::implementedExtensions = {
     "KHR_lights_punctual",
     "EXT_texture_webp",
     "EXT_mesh_gpu_instancing",
@@ -44,7 +44,8 @@ const std::array<char const *, 23> GLTF::implementedExtensions = {
     "KHR_animation_pointer",
     "KHR_draco_mesh_compression",
     "EXT_meshopt_compression",
-    "KHR_meshopt_compression"
+    "KHR_meshopt_compression",
+    "KHR_texture_procedurals"
 };
 
 GLTF::GLTF(
@@ -62,7 +63,8 @@ GLTF::GLTF(
     std::shared_ptr<std::vector<Material>> materials,
     std::shared_ptr<std::vector<Animation>> animations,
     std::shared_ptr<std::vector<Skin>> skins,
-    std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual)
+    std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual,
+    std::shared_ptr<KHRTextureProcedurals> khrTextureProcedurals)
 {
     this->buffers = buffers;
     this->bufferViews = bufferViews;
@@ -79,6 +81,7 @@ GLTF::GLTF(
     this->animations = animations;
     this->skins = skins;
     this->khrLightsPunctual = khrLightsPunctual;
+    this->khrTextureProcedurals = khrTextureProcedurals;
 }
 
 GLTF::~GLTF()
@@ -1438,6 +1441,31 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
         }
     }
 
+    // KHR_texture_procedurals
+    auto khrTextureProcedurals = std::make_shared<KHRTextureProcedurals>();
+    auto khrTextureProceduralsDef = gltfDef["extensions"]["KHR_texture_procedurals"];
+    if (khrTextureProceduralsDef.is_object())
+    {
+        auto proceduralsDef = khrTextureProceduralsDef["procedurals"];
+        if (proceduralsDef.is_array())
+        {
+            khrTextureProcedurals->procedurals.reserve(proceduralsDef.size());
+            for (uint32_t a = 0; a < proceduralsDef.size(); ++a)
+            {
+                khrTextureProcedurals->procedurals.push_back(proceduralGraphFromGLTF(proceduralsDef[a]));
+            }
+        }
+        auto definitionsDef = khrTextureProceduralsDef["procedural_definitions"];
+        if (definitionsDef.is_array())
+        {
+            khrTextureProcedurals->proceduralDefinitions.reserve(definitionsDef.size());
+            for (uint32_t a = 0; a < definitionsDef.size(); ++a)
+            {
+                khrTextureProcedurals->proceduralDefinitions.push_back(proceduralNodeDefFromGLTF(definitionsDef[a]));
+            }
+        }
+    }
+
     auto toReturn = std::shared_ptr<GLTF>(new GLTF(
         buffers,
         bufferViews,
@@ -1453,7 +1481,8 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
         materials,
         animations,
         skins,
-        khrLightsPunctual));
+        khrLightsPunctual,
+        khrTextureProcedurals));
 
     // KHR_materials_variants (top-level variants array)
     auto khrMaterialsVariantsDef = gltfDef["extensions"]["KHR_materials_variants"]["variants"];
@@ -1595,7 +1624,8 @@ std::string GLTF::toString()
     ss << "materials: " << materials->size() << ", ";
     ss << "animations: " << animations->size() << ", ";
     ss << "skins: " << skins->size() << ", ";
-    ss << "khrLightsPunctual: " << khrLightsPunctual->size() << "}";
+    ss << "khrLightsPunctual: " << khrLightsPunctual->size() << ", ";
+    ss << "khrTextureProcedurals: " << (khrTextureProcedurals ? std::to_string(khrTextureProcedurals->procedurals.size()) : "0") << "}";
     return ss.str();
 }
 

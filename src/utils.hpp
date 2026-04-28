@@ -25,6 +25,9 @@ systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE> mat4FromGLTF(const nl
 void realListFromGLTF(std::vector<GLTF_REAL_NUMBER_TYPE> &output, const nlohmann::json &data);
 void intListFromGLTF(std::vector<uint64_t> &output, const nlohmann::json &data);
 std::shared_ptr<KHRTextureTransform> khrTextureTransformFromGLTF(const nlohmann::json &data);
+std::shared_ptr<KHRTextureProceduralsTextureInfo> khrTextureProceduralsTextureInfoFromGLTF(const nlohmann::json &data);
+ProceduralGraph proceduralGraphFromGLTF(const nlohmann::json &data);
+ProceduralNodeDef proceduralNodeDefFromGLTF(const nlohmann::json &data);
 std::shared_ptr<TextureInfo> textureInfoFromGLTF(const nlohmann::json &data);
 AlphaMode alphaModeFromGLTF(const nlohmann::json &data);
 FilterMode filterModeFromGLTF(nlohmann::json &node);

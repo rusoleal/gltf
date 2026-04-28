@@ -148,6 +148,253 @@ std::shared_ptr<KHRTextureTransform> khrTextureTransformFromGLTF(const nlohmann:
     return std::make_shared<KHRTextureTransform>(offset, rotation, scale, texCoord);
 }
 
+// ---------------------------------------------------------------------------
+// KHR_texture_procedurals helpers
+// ---------------------------------------------------------------------------
+
+static std::shared_ptr<ProceduralValue> proceduralValueFromGLTF(const nlohmann::json &data, const std::string &type)
+{
+    auto pv = std::make_shared<ProceduralValue>(type);
+    if (type == "string" || type == "filename")
+    {
+        if (data.is_string())
+            pv->stringValue = data.get<std::string>();
+    }
+    else if (type == "boolean")
+    {
+        if (data.is_boolean())
+            pv->boolValue = data.get<bool>();
+    }
+    else
+    {
+        // All numeric / tuple / matrix types are represented as arrays of values.
+        if (data.is_array())
+        {
+            pv->values.reserve(data.size());
+            for (uint32_t i = 0; i < data.size(); ++i)
+            {
+                if (data[i].is_number())
+                    pv->values.push_back(data[i]);
+            }
+        }
+        else if (data.is_number())
+        {
+            // Gracefully handle single scalar values even though spec says arrays.
+            pv->values.push_back(data);
+        }
+    }
+    return pv;
+}
+
+static ProceduralNodeInput proceduralNodeInputFromGLTF(const std::string &name, const nlohmann::json &data)
+{
+    ProceduralNodeInput input;
+    input.name = name;
+
+    if (!data.is_object())
+        return input;
+
+    input.type = data.value("type", "");
+
+    if (data.contains("value"))
+    {
+        input.value = proceduralValueFromGLTF(data["value"], input.type);
+    }
+    else if (data.contains("node") && data.at("node").is_number_integer())
+    {
+        input.nodeIndex = data.at("node").get<int64_t>();
+        if (data.contains("output") && data.at("output").is_string())
+            input.nodeOutput = data.at("output").get<std::string>();
+    }
+    else if (data.contains("input") && data.at("input").is_string())
+    {
+        input.graphInput = data.at("input").get<std::string>();
+    }
+
+    if (data.contains("xpos") && data.at("xpos").is_number())
+        input.xpos = data.at("xpos").get<GLTF_REAL_NUMBER_TYPE>();
+    if (data.contains("ypos") && data.at("ypos").is_number())
+        input.ypos = data.at("ypos").get<GLTF_REAL_NUMBER_TYPE>();
+    if (data.contains("uiname") && data.at("uiname").is_string())
+        input.uiname = data.at("uiname").get<std::string>();
+    if (data.contains("unittype") && data.at("unittype").is_string())
+        input.unittype = data.at("unittype").get<std::string>();
+    if (data.contains("doc") && data.at("doc").is_string())
+        input.doc = data.at("doc").get<std::string>();
+    if (data.contains("uimin") && data.at("uimin").is_number())
+        input.uimin = data.at("uimin").get<GLTF_REAL_NUMBER_TYPE>();
+    if (data.contains("uimax") && data.at("uimax").is_number())
+        input.uimax = data.at("uimax").get<GLTF_REAL_NUMBER_TYPE>();
+    if (data.contains("uisoftmin") && data.at("uisoftmin").is_number())
+        input.uisoftmin = data.at("uisoftmin").get<GLTF_REAL_NUMBER_TYPE>();
+    if (data.contains("uisoftmax") && data.at("uisoftmax").is_number())
+        input.uisoftmax = data.at("uisoftmax").get<GLTF_REAL_NUMBER_TYPE>();
+    if (data.contains("uistep") && data.at("uistep").is_number())
+        input.uistep = data.at("uistep").get<GLTF_REAL_NUMBER_TYPE>();
+    if (data.contains("uifolder") && data.at("uifolder").is_string())
+        input.uifolder = data.at("uifolder").get<std::string>();
+
+    return input;
+}
+
+static ProceduralNodeOutput proceduralNodeOutputFromGLTF(const std::string &name, const nlohmann::json &data)
+{
+    ProceduralNodeOutput output;
+    output.name = name;
+    if (data.is_object())
+    {
+        output.type = data.value("type", "");
+        if (data.contains("uiname") && data.at("uiname").is_string())
+            output.uiname = data.at("uiname").get<std::string>();
+    }
+    return output;
+}
+
+static ProceduralNode proceduralNodeFromGLTF(const nlohmann::json &data)
+{
+    ProceduralNode node;
+    if (!data.is_object())
+        return node;
+
+    node.name = data.value("name", "");
+    node.nodetype = data.value("nodetype", "");
+    node.type = data.value("type", "");
+
+    auto inputsDef = data["inputs"];
+    if (inputsDef.is_object())
+    {
+        for (auto &element : inputsDef.items())
+        {
+            node.inputs.push_back(proceduralNodeInputFromGLTF(element.key(), element.value()));
+        }
+    }
+
+    auto outputsDef = data["outputs"];
+    if (outputsDef.is_object())
+    {
+        for (auto &element : outputsDef.items())
+        {
+            node.outputs.push_back(proceduralNodeOutputFromGLTF(element.key(), element.value()));
+        }
+    }
+
+    return node;
+}
+
+static ProceduralGraphOutput proceduralGraphOutputFromGLTF(const std::string &name, const nlohmann::json &data)
+{
+    ProceduralGraphOutput output;
+    output.name = name;
+    if (data.is_object())
+    {
+        output.type = data.value("type", "");
+        if (data.contains("node") && data.at("node").is_number_integer())
+            output.nodeIndex = data.at("node").get<int64_t>();
+        if (data.contains("output") && data.at("output").is_string())
+            output.nodeOutput = data.at("output").get<std::string>();
+        if (data.contains("uiname") && data.at("uiname").is_string())
+            output.uiname = data.at("uiname").get<std::string>();
+    }
+    return output;
+}
+
+ProceduralGraph proceduralGraphFromGLTF(const nlohmann::json &data)
+{
+    ProceduralGraph graph;
+    if (!data.is_object())
+        return graph;
+
+    graph.name = data.value("name", "");
+    graph.nodetype = data.value("nodetype", "");
+    graph.type = data.value("type", "");
+    graph.nodedef = data.value("nodedef", int64_t(-1));
+
+    if (data.contains("xpos") && data.at("xpos").is_number())
+        graph.xpos = data.at("xpos").get<GLTF_REAL_NUMBER_TYPE>();
+    if (data.contains("ypos") && data.at("ypos").is_number())
+        graph.ypos = data.at("ypos").get<GLTF_REAL_NUMBER_TYPE>();
+
+    auto inputsDef = data["inputs"];
+    if (inputsDef.is_object())
+    {
+        for (auto &element : inputsDef.items())
+        {
+            graph.inputs.push_back(proceduralNodeInputFromGLTF(element.key(), element.value()));
+        }
+    }
+
+    auto outputsDef = data["outputs"];
+    if (outputsDef.is_object())
+    {
+        for (auto &element : outputsDef.items())
+        {
+            graph.outputs.push_back(proceduralGraphOutputFromGLTF(element.key(), element.value()));
+        }
+    }
+
+    auto nodesDef = data["nodes"];
+    if (nodesDef.is_array())
+    {
+        graph.nodes.reserve(nodesDef.size());
+        for (uint32_t i = 0; i < nodesDef.size(); ++i)
+        {
+            graph.nodes.push_back(proceduralNodeFromGLTF(nodesDef[i]));
+        }
+    }
+
+    return graph;
+}
+
+ProceduralNodeDef proceduralNodeDefFromGLTF(const nlohmann::json &data)
+{
+    ProceduralNodeDef def;
+    if (!data.is_object())
+        return def;
+
+    def.name = data.value("name", "");
+    def.nodetype = data.value("nodetype", "");
+    def.node = data.value("node", "");
+    def.nodegroup = data.value("nodegroup", "");
+    def.version = data.value("version", "");
+    def.defaultVersion = data.value("defaultVersion", false);
+
+    auto inputsDef = data["inputs"];
+    if (inputsDef.is_object())
+    {
+        for (auto &element : inputsDef.items())
+        {
+            def.inputs.push_back(proceduralNodeInputFromGLTF(element.key(), element.value()));
+        }
+    }
+
+    auto outputsDef = data["outputs"];
+    if (outputsDef.is_object())
+    {
+        for (auto &element : outputsDef.items())
+        {
+            def.outputs.push_back(proceduralNodeOutputFromGLTF(element.key(), element.value()));
+        }
+    }
+
+    return def;
+}
+
+std::shared_ptr<KHRTextureProceduralsTextureInfo> khrTextureProceduralsTextureInfoFromGLTF(const nlohmann::json &data)
+{
+    if (!data.is_object())
+        return nullptr;
+
+    if (!data.contains("index") || !data.at("index").is_number_integer())
+        return nullptr;
+
+    int64_t index = data.at("index").get<int64_t>();
+    std::string output;
+    if (data.contains("output") && data.at("output").is_string())
+        output = data.at("output").get<std::string>();
+
+    return std::make_shared<KHRTextureProceduralsTextureInfo>(index, output);
+}
+
 std::shared_ptr<TextureInfo> textureInfoFromGLTF(const nlohmann::json &data) {
     if (!data.is_object()) {
         return nullptr;
@@ -159,6 +406,10 @@ std::shared_ptr<TextureInfo> textureInfoFromGLTF(const nlohmann::json &data) {
     if (data.contains("extensions") && data.at("extensions").is_object() &&
         data.at("extensions").contains("KHR_texture_transform")) {
         ti->khrTextureTransform = khrTextureTransformFromGLTF(data.at("extensions").at("KHR_texture_transform"));
+    }
+    if (data.contains("extensions") && data.at("extensions").is_object() &&
+        data.at("extensions").contains("KHR_texture_procedurals")) {
+        ti->khrTextureProcedurals = khrTextureProceduralsTextureInfoFromGLTF(data.at("extensions").at("KHR_texture_procedurals"));
     }
     return ti;
 }

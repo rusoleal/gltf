@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.2] - 2026-04-28
+
+### Added
+- `KHR_texture_procedurals` extension support.
+  - Parses root-level `procedurals` (procedural graphs) and `procedural_definitions` (node definitions).
+  - Parses `KHR_texture_procedurals` inside any `TextureInfo` (e.g. `baseColorTexture`), with `index` and `output` fields.
+  - Full data model: `ProceduralGraph`, `ProceduralNode`, `ProceduralNodeDef`, `ProceduralNodeInput`, `ProceduralNodeOutput`, `ProceduralValue`.
+
 ## [0.4.1] - 2026-04-12
 - prevent fetch vector_math if already fetched.
 

@@ -1873,3 +1873,243 @@ TEST(EXTMeshoptCompressionTest, IndexBufferRoundtrip)
     for (size_t i = 0; i < count; ++i)
         EXPECT_EQ(decoded[i], original[i]) << "mismatch at index " << i;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 22.  KHR_texture_procedurals
+// ─────────────────────────────────────────────────────────────────────────────
+
+static const std::string kTextureProceduralsJSON = R"({
+  "asset": {"version": "2.0"},
+  "extensionsUsed": ["KHR_texture_procedurals"],
+  "extensions": {
+    "KHR_texture_procedurals": {
+      "procedurals": [
+        {
+          "name": "checkerboard",
+          "nodetype": "nodegraph",
+          "type": "color3",
+          "inputs": {
+            "color1": {
+              "nodetype": "input",
+              "type": "color3",
+              "value": [1.0, 0.094118, 0.031373]
+            },
+            "color2": {
+              "nodetype": "input",
+              "type": "color3",
+              "value": [0.035294, 0.090196, 0.878431]
+            },
+            "uvtiling": {
+              "nodetype": "input",
+              "type": "vector2",
+              "value": [8.0, 8.0]
+            }
+          },
+          "outputs": {
+            "out": {
+              "nodetype": "output",
+              "type": "color3",
+              "node": 0,
+              "output": "out"
+            }
+          },
+          "nodes": [
+            {
+              "name": "mix1",
+              "nodetype": "mix",
+              "type": "color3",
+              "inputs": {
+                "fg": {
+                  "nodetype": "input",
+                  "type": "color3",
+                  "input": "color1"
+                },
+                "bg": {
+                  "nodetype": "input",
+                  "type": "color3",
+                  "input": "color2"
+                },
+                "mix": {
+                  "nodetype": "input",
+                  "type": "float",
+                  "value": [0.5]
+                }
+              },
+              "outputs": {
+                "out": {
+                  "nodetype": "output",
+                  "type": "color3"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "procedural_definitions": [
+        {
+          "name": "ND_custom_color3",
+          "nodetype": "nodedef",
+          "node": "custom",
+          "nodegroup": "procedural",
+          "inputs": {
+            "in1": {
+              "doc": "Input color",
+              "type": "color3",
+              "value": [1.0, 1.0, 1.0],
+              "uiname": "Input 1"
+            }
+          },
+          "outputs": {
+            "out": {
+              "type": "color3"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "images": [
+    {
+      "uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVQI12P4z/AfAAQAAf/zKSWvAAAAAElFTkSuQmCC"
+    }
+  ],
+  "textures": [
+    {"source": 0}
+  ],
+  "materials": [
+    {
+      "name": "ProceduralMat",
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 0,
+          "extensions": {
+            "KHR_texture_procedurals": {
+              "index": 0,
+              "output": "out"
+            }
+          }
+        }
+      }
+    }
+  ]
+})";
+
+class KHRTextureProceduralsTest : public testing::Test {
+protected:
+    std::shared_ptr<GLTF> asset;
+    KHRTextureProceduralsTest() { asset = loadInline(kTextureProceduralsJSON); }
+};
+
+TEST_F(KHRTextureProceduralsTest, ExtensionParsed)
+{
+    ASSERT_NE(asset, nullptr);
+    ASSERT_NE(asset->khrTextureProcedurals, nullptr);
+}
+
+TEST_F(KHRTextureProceduralsTest, ProceduralsCount)
+{
+    ASSERT_NE(asset->khrTextureProcedurals, nullptr);
+    EXPECT_EQ(asset->khrTextureProcedurals->procedurals.size(), 1u);
+}
+
+TEST_F(KHRTextureProceduralsTest, ProceduralGraphName)
+{
+    const auto &graph = asset->khrTextureProcedurals->procedurals[0];
+    EXPECT_EQ(graph.name, "checkerboard");
+    EXPECT_EQ(graph.nodetype, "nodegraph");
+    EXPECT_EQ(graph.type, "color3");
+}
+
+TEST_F(KHRTextureProceduralsTest, ProceduralGraphInputs)
+{
+    const auto &graph = asset->khrTextureProcedurals->procedurals[0];
+    ASSERT_EQ(graph.inputs.size(), 3u);
+
+    const ProceduralNodeInput *color1 = nullptr;
+    for (const auto &in : graph.inputs)
+        if (in.name == "color1") color1 = &in;
+    ASSERT_NE(color1, nullptr);
+    EXPECT_EQ(color1->type, "color3");
+    ASSERT_NE(color1->value, nullptr);
+    ASSERT_EQ(color1->value->values.size(), 3u);
+    EXPECT_NEAR(color1->value->values[0], 1.0, 1e-6);
+    EXPECT_NEAR(color1->value->values[1], 0.094118, 1e-6);
+    EXPECT_NEAR(color1->value->values[2], 0.031373, 1e-6);
+}
+
+TEST_F(KHRTextureProceduralsTest, ProceduralGraphOutputs)
+{
+    const auto &graph = asset->khrTextureProcedurals->procedurals[0];
+    ASSERT_EQ(graph.outputs.size(), 1u);
+    EXPECT_EQ(graph.outputs[0].name, "out");
+    EXPECT_EQ(graph.outputs[0].type, "color3");
+    EXPECT_EQ(graph.outputs[0].nodeIndex, 0);
+    EXPECT_EQ(graph.outputs[0].nodeOutput, "out");
+}
+
+TEST_F(KHRTextureProceduralsTest, ProceduralNode)
+{
+    const auto &graph = asset->khrTextureProcedurals->procedurals[0];
+    ASSERT_EQ(graph.nodes.size(), 1u);
+    const auto &node = graph.nodes[0];
+    EXPECT_EQ(node.name, "mix1");
+    EXPECT_EQ(node.nodetype, "mix");
+    EXPECT_EQ(node.type, "color3");
+    ASSERT_EQ(node.inputs.size(), 3u);
+    ASSERT_EQ(node.outputs.size(), 1u);
+}
+
+TEST_F(KHRTextureProceduralsTest, NodeInputConnections)
+{
+    const auto &node = asset->khrTextureProcedurals->procedurals[0].nodes[0];
+    const ProceduralNodeInput *fg = nullptr;
+    const ProceduralNodeInput *mix = nullptr;
+    for (const auto &in : node.inputs)
+    {
+        if (in.name == "fg") fg = &in;
+        if (in.name == "mix") mix = &in;
+    }
+    ASSERT_NE(fg, nullptr);
+    EXPECT_EQ(fg->graphInput, "color1");
+    ASSERT_NE(mix, nullptr);
+    ASSERT_NE(mix->value, nullptr);
+    EXPECT_NEAR(mix->value->values[0], 0.5, 1e-6);
+}
+
+TEST_F(KHRTextureProceduralsTest, ProceduralDefinitionsCount)
+{
+    ASSERT_NE(asset->khrTextureProcedurals, nullptr);
+    EXPECT_EQ(asset->khrTextureProcedurals->proceduralDefinitions.size(), 1u);
+}
+
+TEST_F(KHRTextureProceduralsTest, ProceduralNodeDef)
+{
+    const auto &def = asset->khrTextureProcedurals->proceduralDefinitions[0];
+    EXPECT_EQ(def.name, "ND_custom_color3");
+    EXPECT_EQ(def.nodetype, "nodedef");
+    EXPECT_EQ(def.node, "custom");
+    EXPECT_EQ(def.nodegroup, "procedural");
+    ASSERT_EQ(def.inputs.size(), 1u);
+    EXPECT_EQ(def.inputs[0].doc, "Input color");
+    EXPECT_EQ(def.inputs[0].uiname, "Input 1");
+}
+
+TEST_F(KHRTextureProceduralsTest, MaterialTextureInfoExtension)
+{
+    const Material *mat = findMaterial(asset, "ProceduralMat");
+    ASSERT_NE(mat, nullptr);
+    ASSERT_NE(mat->pbrMetallicRoughness, nullptr);
+    ASSERT_NE(mat->pbrMetallicRoughness->baseColorTexture, nullptr);
+    ASSERT_NE(mat->pbrMetallicRoughness->baseColorTexture->khrTextureProcedurals, nullptr);
+    EXPECT_EQ(mat->pbrMetallicRoughness->baseColorTexture->khrTextureProcedurals->index, 0);
+    EXPECT_EQ(mat->pbrMetallicRoughness->baseColorTexture->khrTextureProcedurals->output, "out");
+}
+
+TEST_F(KHRTextureProceduralsTest, FallbackTextureIndexPreserved)
+{
+    const Material *mat = findMaterial(asset, "ProceduralMat");
+    ASSERT_NE(mat, nullptr);
+    ASSERT_NE(mat->pbrMetallicRoughness, nullptr);
+    ASSERT_NE(mat->pbrMetallicRoughness->baseColorTexture, nullptr);
+    EXPECT_EQ(mat->pbrMetallicRoughness->baseColorTexture->index, 0u);
+}
