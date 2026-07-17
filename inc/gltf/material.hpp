@@ -357,6 +357,35 @@ namespace systems::leal::gltf
     };
 
     /**
+     * KHR_materials_diffuse_transmission extension data.
+     * https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_diffuse_transmission
+     */
+    struct KHRMaterialsDiffuseTransmission
+    {
+        /// The percentage of light diffusely transmitted through the surface.
+        GLTF_REAL_NUMBER_TYPE diffuseTransmissionFactor = 0.0;
+
+        /// Texture defining the transmission strength (alpha channel).
+        std::shared_ptr<TextureInfo> diffuseTransmissionTexture = nullptr;
+
+        /// The color of the transmitted light.
+        systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> diffuseTransmissionColorFactor;
+
+        /// Texture defining the transmitted color (RGB, sRGB).
+        std::shared_ptr<TextureInfo> diffuseTransmissionColorTexture = nullptr;
+
+        KHRMaterialsDiffuseTransmission(
+            GLTF_REAL_NUMBER_TYPE diffuseTransmissionFactor,
+            std::shared_ptr<TextureInfo> diffuseTransmissionTexture,
+            const systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> &diffuseTransmissionColorFactor,
+            std::shared_ptr<TextureInfo> diffuseTransmissionColorTexture)
+            : diffuseTransmissionFactor(diffuseTransmissionFactor),
+              diffuseTransmissionTexture(diffuseTransmissionTexture),
+              diffuseTransmissionColorFactor(diffuseTransmissionColorFactor),
+              diffuseTransmissionColorTexture(diffuseTransmissionColorTexture) {}
+    };
+
+    /**
      * The material appearance of a [Primitive].
      */
     struct Material : public GLTFChildOfRoot
@@ -420,6 +449,7 @@ namespace systems::leal::gltf
         std::shared_ptr<KHRMaterialsVolume>       khrMaterialsVolume       = nullptr;
         std::shared_ptr<KHRMaterialsIridescence>  khrMaterialsIridescence  = nullptr;
         std::shared_ptr<KHRMaterialsAnisotropy>   khrMaterialsAnisotropy   = nullptr;
+        std::shared_ptr<KHRMaterialsDiffuseTransmission> khrMaterialsDiffuseTransmission = nullptr;
 
         /// KHR_materials_unlit: when true, the material should be rendered without
         /// lighting (unlit shading model).

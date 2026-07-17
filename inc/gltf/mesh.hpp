@@ -7,6 +7,9 @@
 #include <gltf/gltf_child_of_root.hpp>
 #include <gltf/extensions/khr_materials_variants.hpp>
 #include <gltf/extensions/khr_draco_mesh_compression.hpp>
+#include <gltf/extensions/khr_gaussian_splatting.hpp>
+#include <gltf/extensions/ext_mesh_primitive_edge_visibility.hpp>
+#include <gltf/extensions/ext_mesh_primitive_restart.hpp>
 
 namespace systems::leal::gltf
 {
@@ -72,6 +75,15 @@ namespace systems::leal::gltf
         /// nullptr when the extension is absent.
         std::shared_ptr<KHRDracoMeshCompression> khrDracoMeshCompression = nullptr;
 
+        /// KHR_gaussian_splatting: Gaussian splat rendering hints. nullptr if absent.
+        std::shared_ptr<KHRGaussianSplatting> khrGaussianSplatting = nullptr;
+
+        /// EXT_mesh_primitive_edge_visibility: edge visibility data. nullptr if absent.
+        std::shared_ptr<EXTMeshPrimitiveEdgeVisibility> extMeshPrimitiveEdgeVisibility = nullptr;
+
+        /// EXT_mesh_primitive_restart: primitive restart groups. nullptr if absent.
+        std::shared_ptr<EXTMeshPrimitiveRestart> extMeshPrimitiveRestart = nullptr;
+
         Primitive(
             const std::unordered_map<std::string, uint64_t> &attributes,
             int64_t indices,
@@ -85,6 +97,30 @@ namespace systems::leal::gltf
             this->mode = mode;
             this->targets = std::move(targets);
         }
+    };
+
+    /**
+     * EXT_mesh_manifold mesh extension data.
+     * https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Vendor/EXT_mesh_manifold
+     */
+    struct EXTMeshManifold
+    {
+        /// A full primitive describing the manifold geometry.
+        Primitive manifoldPrimitive;
+
+        /// Accessor index containing vertex sparse indices for merging. -1 if absent.
+        int64_t mergeIndices = -1;
+
+        /// Accessor index containing vertex sparse values for merging. -1 if absent.
+        int64_t mergeValues = -1;
+
+        EXTMeshManifold(
+            const Primitive &manifoldPrimitive,
+            int64_t mergeIndices,
+            int64_t mergeValues)
+            : manifoldPrimitive(manifoldPrimitive),
+              mergeIndices(mergeIndices),
+              mergeValues(mergeValues) {}
     };
 
     /**
@@ -107,6 +143,9 @@ namespace systems::leal::gltf
 
         /// KHR_xmp_json_ld: index into the top-level packets array. -1 if not set.
         int64_t khrXmpPacket = -1;
+
+        /// EXT_mesh_manifold: manifold representation of this mesh. nullptr if absent.
+        std::shared_ptr<EXTMeshManifold> extMeshManifold = nullptr;
 
         Mesh(
             const std::string &name,

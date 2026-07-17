@@ -1,0 +1,10 @@
+{
+  "asset": {"version": "2.1"},
+  "scene": 0,
+  "scenes": [{"uid": "scene-main", "nodes": [0]}],
+  "nodes": [{"uid": "node-root", "mesh": 0}],
+  "meshes": [{"uid": "mesh-triangle", "primitives": [{"attributes": {"POSITION": 0}}]}],
+  "accessors": [{"uid": "accessor-pos", "bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"}],
+  "bufferViews": [{"uid": "bufferView-pos", "buffer": 0, "byteOffset": 0, "byteLength": 36}],
+  "buffers": [{"uid": "buffer-main", "byteLength": 36, "uri": "data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}]
+}

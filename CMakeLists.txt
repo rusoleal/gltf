@@ -144,6 +144,7 @@ if (GLTF_BUILD_TEST)
         test/main.cpp
         test/extensions.cpp
         test/validation.cpp
+        test/gltf21.cpp
     )
     set_target_properties(${PROJECT_NAME}_test PROPERTIES UNITY_BUILD ON)
     target_link_libraries(${PROJECT_NAME}_test

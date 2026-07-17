@@ -4,8 +4,12 @@
 #include <vector_math/vector3.hpp>
 #include <vector_math/quaternion.hpp>
 #include <vector_math/matrix4.hpp>
+#include <memory>
 #include <gltf/gltf_child_of_root.hpp>
+#include <gltf/bounding_volume.hpp>
+#include <gltf/external_asset.hpp>
 #include <gltf/extensions/ext_mesh_gpu_instancing.hpp>
+#include <gltf/extensions/ext_lights_ies.hpp>
 
 namespace systems::leal::gltf
 {
@@ -83,6 +87,39 @@ namespace systems::leal::gltf
         std::vector<GLTF_REAL_NUMBER_TYPE> weights;
 
         /**
+         * Node visibility toggle. Corresponds to KHR_node_visibility in glTF 2.0
+         * and is part of the core spec in glTF 2.1. Defaults to true.
+         */
+        bool visible = true;
+
+        /**
+         * glTF 2.1 external asset index. References the `externalAssets` array.
+         * -1 if the node does not instantiate an external asset.
+         */
+        int64_t externalAsset = -1;
+
+        /**
+         * glTF 2.1 bounding volume attached to this node.
+         * nullptr when the node has no bounding volume.
+         */
+        std::shared_ptr<BoundingVolume> boundingVolume = nullptr;
+
+        /**
+         * KHR_node_hoverability: whether the node responds to hover actions.
+         */
+        bool hoverable = true;
+
+        /**
+         * KHR_node_selectability: whether the node responds to select actions.
+         */
+        bool selectable = true;
+
+        /**
+         * EXT_lights_ies: reference to an IES light profile. nullptr if not set.
+         */
+        std::shared_ptr<EXTNodeLightsIES> extLightsIes = nullptr;
+
+        /**
          * KHR_lights_punctual extension
          */
         int64_t light;
@@ -103,6 +140,7 @@ namespace systems::leal::gltf
             systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> scale,
             systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE> translation,
             std::vector<GLTF_REAL_NUMBER_TYPE> weights,
+            bool visible,
             int64_t light,
             std::shared_ptr<EXTMeshGpuInstancing> extMeshGpuInstancing) : GLTFChildOfRoot(name)
         {
@@ -115,6 +153,7 @@ namespace systems::leal::gltf
             this->scale = scale;
             this->translation = translation;
             this->weights = weights;
+            this->visible = visible;
             this->light = light;
             this->extMeshGpuInstancing = extMeshGpuInstancing;
         }

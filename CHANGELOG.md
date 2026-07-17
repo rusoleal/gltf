@@ -1,5 +1,40 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- glTF 2.1 parser support:
+  - Accepts `asset.version` 2.1.
+  - Promoted `KHR_node_visibility` to core `Node::visible`, with `KHR_node_visibility` extension fallback for 2.0 assets.
+  - New accessor component types: `INT` (5124), `HALF_FLOAT` (5130), `DOUBLE` (5131), `UNSIGNED_BYTE_NORMALIZED` (5134), `BYTE_NORMALIZED` (5135).
+  - Non-sequential `TEXCOORD_n` / `COLOR_n` primitive attributes.
+  - File-scoped Unique IDs (`uid`) on every child-of-root object, with uniqueness validation against `name`.
+  - Unified File References: top-level `files` array (`File` struct with `uri`, `bufferView`, `mimeType`, `data`).
+  - External Assets and Packaging: top-level `externalAssets` array and `Node::externalAsset`.
+  - Shape definitions: top-level `shapes` array (`BoxShape`, `SphereShape`, `CapsuleShape`, `CylinderShape`, `PlaneShape`).
+  - Bounding Volumes: `Node::boundingVolume` referencing a shape index and optional matrix.
+  - Thumbnails: `asset.thumbnail` parsed into `GLTF::thumbnail`.
+  - GLB v3 64-bit container support, while retaining full GLB v2 compatibility.
+- `test/gltf21.cpp` test suite (35 tests) covering the new 2.1 data model and validation paths.
+- Additional 2.1 reference-validation tests in `test/validation.cpp`.
+- Optional official Khronos glTF 2.1 sample-asset download path via `GLTF21_SAMPLE_REPO` in `launch_test.sh`.
+- Parser-level support for additional official Khronos and multi-vendor extensions:
+  - `KHR_node_hoverability` / `KHR_node_selectability` — parsed on `Node`.
+  - `KHR_materials_diffuse_transmission` — parsed on `Material`.
+  - `KHR_gaussian_splatting` — parsed on `Node` / `Mesh`.
+  - `EXT_texture_astc` — parsed inside `TextureInfo`.
+  - `EXT_lights_ies` — root `lights` array and per-node light reference.
+  - `EXT_lights_image_based` — root `lights` array and per-scene light reference.
+  - `EXT_mesh_manifold` — parsed on `Mesh` with `manifoldPrimitive` and merge accessors.
+  - `EXT_mesh_primitive_edge_visibility` — parsed on primitive.
+  - `EXT_mesh_primitive_restart` — parsed on primitive.
+- Cross-reference validation for the new extensions: IES light indices, image-based scene light indices, restart-group primitive indices, and manifold merge accessor indices.
+- Unit tests for all of the above extensions in `test/extensions.cpp` and validation tests in `test/validation.cpp`.
+
+### Changed
+- `GLTF_MAX_BUFFER_BYTE_LENGTH` raised to `0x7FFFFFFFFFFFFFFFULL` to accommodate GLB v3 64-bit buffers.
+- Updated the input-size-limit validation test for the new 64-bit buffer limit.
+
 ## [0.4.2] - 2026-04-28
 
 ### Added

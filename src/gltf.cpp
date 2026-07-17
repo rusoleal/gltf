@@ -18,10 +18,111 @@ using namespace systems::leal::gltf;
 using json = nlohmann::json;
 
 static constexpr uint64_t GLTF_MAX_ARRAY_ELEMENTS  = 65536;
-static constexpr uint64_t GLTF_MAX_BUFFER_BYTE_LENGTH = 2ULL * 1024 * 1024 * 1024; // 2 GB
+// glTF 2.1's 64-bit GLB format raises the previous 2 GB limit to 8 EiB.
+static constexpr uint64_t GLTF_MAX_BUFFER_BYTE_LENGTH = 0x7FFFFFFFFFFFFFFFULL;
+
+/**
+ * Parse the optional glTF 2.1 unique identifier from a child-of-root object.
+ * Returns an empty string when the field is absent or not a string.
+ */
+static std::string parseUid(const nlohmann::json &objDef)
+{
+    if (objDef.contains("uid") && objDef.at("uid").is_string())
+    {
+        return objDef.at("uid").get<std::string>();
+    }
+    return "";
+}
+
+/**
+ * Validate glTF 2.1 unique identifiers across all child-of-root objects.
+ * A UID must be unique within the file and must not collide with any name.
+ */
+static void validateUids(
+    const std::vector<Buffer> &buffers,
+    const std::vector<BufferView> &bufferViews,
+    const std::vector<Accessor> &accessors,
+    const std::vector<std::shared_ptr<Camera>> &cameras,
+    const std::vector<Image> &images,
+    const std::vector<Texture> &textures,
+    const std::vector<Scene> &scenes,
+    const std::vector<Node> &nodes,
+    const std::vector<Sampler> &samplers,
+    const std::vector<Mesh> &meshes,
+    const std::vector<Material> &materials,
+    const std::vector<Animation> &animations,
+    const std::vector<Skin> &skins,
+    const std::vector<KHRLightPunctual> &khrLightsPunctual,
+    const std::vector<EXTLightIESProfile> &extLightsIes,
+    const std::vector<EXTLightImageBased> &extLightsImageBased,
+    const std::vector<File> &files,
+    const std::vector<std::shared_ptr<Shape>> &shapes,
+    const std::vector<ExternalAsset> &externalAssets)
+{
+    std::unordered_set<std::string> names;
+    std::unordered_set<std::string> uids;
+
+    auto reserveName = [&names](const std::string &name) {
+        if (!name.empty()) names.insert(name);
+    };
+
+    auto checkUid = [&names, &uids](const std::string &uid) {
+        if (uid.empty()) return;
+        if (!uids.insert(uid).second)
+        {
+            throw std::invalid_argument("Duplicate uid: " + uid);
+        }
+        if (names.count(uid))
+        {
+            throw std::invalid_argument("uid collides with name: " + uid);
+        }
+    };
+
+    // Collect names first so a later uid cannot collide with any earlier name.
+    for (const auto &v : buffers)        reserveName(v.name);
+    for (const auto &v : bufferViews)    reserveName(v.name);
+    for (const auto &v : accessors)      reserveName(v.name);
+    for (const auto &v : cameras)        if (v) reserveName(v->name);
+    for (const auto &v : images)         reserveName(v.name);
+    for (const auto &v : textures)       reserveName(v.name);
+    for (const auto &v : scenes)         reserveName(v.name);
+    for (const auto &v : nodes)          reserveName(v.name);
+    for (const auto &v : samplers)       reserveName(v.name);
+    for (const auto &v : meshes)         reserveName(v.name);
+    for (const auto &v : materials)      reserveName(v.name);
+    for (const auto &v : animations)     reserveName(v.name);
+    for (const auto &v : skins)          reserveName(v.name);
+    for (const auto &v : khrLightsPunctual) reserveName(v.name);
+    for (const auto &v : extLightsIes)   reserveName(v.name);
+    for (const auto &v : extLightsImageBased) reserveName(v.name);
+    for (const auto &v : files)          reserveName(v.name);
+    for (const auto &v : shapes)         if (v) reserveName(v->name);
+    for (const auto &v : externalAssets) reserveName(v.name);
+
+    // Now validate every explicit uid.
+    for (const auto &v : buffers)        checkUid(v.uid);
+    for (const auto &v : bufferViews)    checkUid(v.uid);
+    for (const auto &v : accessors)      checkUid(v.uid);
+    for (const auto &v : cameras)        if (v) checkUid(v->uid);
+    for (const auto &v : images)         checkUid(v.uid);
+    for (const auto &v : textures)       checkUid(v.uid);
+    for (const auto &v : scenes)         checkUid(v.uid);
+    for (const auto &v : nodes)          checkUid(v.uid);
+    for (const auto &v : samplers)       checkUid(v.uid);
+    for (const auto &v : meshes)         checkUid(v.uid);
+    for (const auto &v : materials)      checkUid(v.uid);
+    for (const auto &v : animations)     checkUid(v.uid);
+    for (const auto &v : skins)          checkUid(v.uid);
+    for (const auto &v : khrLightsPunctual) checkUid(v.uid);
+    for (const auto &v : extLightsIes)   checkUid(v.uid);
+    for (const auto &v : extLightsImageBased) checkUid(v.uid);
+    for (const auto &v : files)          checkUid(v.uid);
+    for (const auto &v : shapes)         if (v) checkUid(v->uid);
+    for (const auto &v : externalAssets) checkUid(v.uid);
+}
 
 
-const std::array<char const *, 24> GLTF::implementedExtensions = {
+const std::array<char const *, 35> GLTF::implementedExtensions = {
     "KHR_lights_punctual",
     "EXT_texture_webp",
     "EXT_mesh_gpu_instancing",
@@ -45,7 +146,18 @@ const std::array<char const *, 24> GLTF::implementedExtensions = {
     "KHR_draco_mesh_compression",
     "EXT_meshopt_compression",
     "KHR_meshopt_compression",
-    "KHR_texture_procedurals"
+    "KHR_texture_procedurals",
+    "KHR_node_visibility",
+    "KHR_node_hoverability",
+    "KHR_node_selectability",
+    "KHR_materials_diffuse_transmission",
+    "KHR_gaussian_splatting",
+    "EXT_texture_astc",
+    "EXT_lights_ies",
+    "EXT_lights_image_based",
+    "EXT_mesh_manifold",
+    "EXT_mesh_primitive_edge_visibility",
+    "EXT_mesh_primitive_restart"
 };
 
 GLTF::GLTF(
@@ -64,7 +176,9 @@ GLTF::GLTF(
     std::shared_ptr<std::vector<Animation>> animations,
     std::shared_ptr<std::vector<Skin>> skins,
     std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual,
-    std::shared_ptr<KHRTextureProcedurals> khrTextureProcedurals)
+    std::shared_ptr<KHRTextureProcedurals> khrTextureProcedurals,
+    std::shared_ptr<std::vector<EXTLightIESProfile>> extLightsIes,
+    std::shared_ptr<std::vector<EXTLightImageBased>> extLightsImageBased)
 {
     this->buffers = buffers;
     this->bufferViews = bufferViews;
@@ -82,6 +196,8 @@ GLTF::GLTF(
     this->skins = skins;
     this->khrLightsPunctual = khrLightsPunctual;
     this->khrTextureProcedurals = khrTextureProcedurals;
+    this->extLightsIes = extLightsIes;
+    this->extLightsImageBased = extLightsImageBased;
 }
 
 GLTF::~GLTF()
@@ -172,6 +288,13 @@ void GLTF::updateRuntimeInfoWithNode(std::shared_ptr<RuntimeInfo> runtimeInfo, N
     if (node.light != -1 && static_cast<size_t>(node.light) >= khrLightsPunctual->size())
         throw std::invalid_argument("Node references out-of-range light index " + std::to_string(node.light));
 
+    // EXT_lights_ies
+    if (node.extLightsIes != nullptr)
+    {
+        if (node.extLightsIes->light < 0 || static_cast<size_t>(node.extLightsIes->light) >= extLightsIes->size())
+            throw std::invalid_argument("Node references out-of-range IES light index " + std::to_string(node.extLightsIes->light));
+    }
+
     // KHR_xmp_json_ld (node)
     if (node.khrXmpPacket != -1)
     {
@@ -261,6 +384,14 @@ std::shared_ptr<RuntimeInfo> GLTF::getRuntimeInfo(uint64_t sceneIndex)
     }
 
     auto &scene = (*scenes)[sceneIndex];
+
+    // EXT_lights_image_based
+    if (scene.extLightImageBased != -1)
+    {
+        if (extLightsImageBased == nullptr || static_cast<size_t>(scene.extLightImageBased) >= extLightsImageBased->size())
+            throw std::invalid_argument("Scene references out-of-range image-based light index " + std::to_string(scene.extLightImageBased));
+    }
+
     std::unordered_set<uint64_t> visited;
     for (auto nodeIndex : *scene.nodes)
     {
@@ -277,51 +408,131 @@ std::shared_ptr<RuntimeInfo> GLTF::getRuntimeInfo(uint64_t sceneIndex)
 
 #define CHUNK_TYPE_JSON 0x4E4F534A
 #define CHUNK_TYPE_BIN 0x004E4942
+
+static uint32_t readLE32(const uint8_t *data, uint64_t offset)
+{
+    uint32_t value;
+    memcpy(&value, data + offset, sizeof(value));
+    return value;
+}
+
+static uint64_t readLE64(const uint8_t *data, uint64_t offset)
+{
+    uint64_t value;
+    memcpy(&value, data + offset, sizeof(value));
+    return value;
+}
+
 std::shared_ptr<GLTF> GLTF::loadGLB(uint8_t *data, uint64_t size)
 {
-
     if (size < 12)
     {
         throw std::invalid_argument("Invalid glb size");
     }
 
-    auto header = (uint32_t *)data;
-    if (header[0] != 0x46546C67)
+    uint32_t magic = readLE32(data, 0);
+    if (magic != 0x46546C67)
     {
         throw std::invalid_argument("Invalid GLB header");
     }
 
-    if (header[1] != 2)
+    uint32_t version = readLE32(data, 4);
+    uint64_t totalLength;
+    uint64_t headerSize;
+    uint64_t chunkHeaderSize;
+    uint64_t chunkAlignment;
+
+    if (version == 2)
     {
-        throw std::invalid_argument("Unsupported GLB version: " + std::to_string(header[1]));
+        headerSize = 12;
+        chunkHeaderSize = 8;  // length (4) + type (4)
+        chunkAlignment = 4;
+        totalLength = readLE32(data, 8);
+    }
+    else if (version == 3)
+    {
+        if (size < 16)
+        {
+            throw std::invalid_argument("Invalid glb size for version 3");
+        }
+        headerSize = 16;
+        chunkHeaderSize = 16; // length (8) + type (4) + encoding (4)
+        chunkAlignment = 8;
+        totalLength = readLE64(data, 8);
+    }
+    else
+    {
+        throw std::invalid_argument("Unsupported GLB version: " + std::to_string(version));
     }
 
-    if (header[2] != size)
+    if (totalLength != size)
     {
         throw std::invalid_argument("Wrong GLB size");
     }
 
-    // chunk 0
-    auto chunk0Length = header[3];
-    auto chunk0Type = header[4];
+    auto readChunk = [&](uint64_t &offset, uint64_t &chunkLength, uint32_t &chunkType, uint32_t &chunkEncoding) -> const uint8_t *
+    {
+        if (offset + chunkHeaderSize > size)
+        {
+            throw std::invalid_argument("GLB chunk header out of bounds");
+        }
+
+        if (version == 2)
+        {
+            chunkLength = readLE32(data, offset);
+            chunkType = readLE32(data, offset + 4);
+            chunkEncoding = 0;
+        }
+        else // version 3
+        {
+            chunkLength = readLE64(data, offset);
+            chunkType = readLE32(data, offset + 8);
+            chunkEncoding = readLE32(data, offset + 12);
+        }
+
+        if (offset + chunkHeaderSize + chunkLength > size)
+        {
+            throw std::invalid_argument("GLB chunk payload out of bounds");
+        }
+
+        const uint8_t *payload = data + offset + chunkHeaderSize;
+        offset += chunkHeaderSize + chunkLength;
+
+        // Chunks are aligned to the format's alignment boundary.
+        if (chunkLength % chunkAlignment != 0)
+        {
+            offset += chunkAlignment - (chunkLength % chunkAlignment);
+        }
+
+        return payload;
+    };
+
+    // Chunk 0 must be JSON.
+    uint64_t offset = headerSize;
+    uint64_t chunk0Length;
+    uint32_t chunk0Type;
+    uint32_t chunk0Encoding;
+    const uint8_t *chunk0Payload = readChunk(offset, chunk0Length, chunk0Type, chunk0Encoding);
     if (chunk0Type != CHUNK_TYPE_JSON)
     {
         throw std::invalid_argument("GLB chunk0 must be of type JSON");
     }
-    auto chunk0 = std::string((char *)&header[5], chunk0Length);
+
+    if (chunk0Length > std::numeric_limits<size_t>::max())
+    {
+        throw std::invalid_argument("GLB JSON chunk too large");
+    }
+    auto chunk0 = std::string((char *)chunk0Payload, static_cast<size_t>(chunk0Length));
     auto toReturn = loadGLTF(chunk0);
 
-    // The start and the end of each chunk MUST be aligned to a 4-byte boundary.
-    if (chunk0Length % 4 != 0)
+    // Chunk 1 is optional and must be BIN if present.
+    if (offset + chunkHeaderSize <= size)
     {
-        chunk0Length += 4 - (chunk0Length % 4);
-    }
+        uint64_t chunk1Length;
+        uint32_t chunk1Type;
+        uint32_t chunk1Encoding;
+        const uint8_t *chunk1Payload = readChunk(offset, chunk1Length, chunk1Type, chunk1Encoding);
 
-    if (size > chunk0Length + 20)
-    {
-        auto chunk1Address = (uint32_t *)(((uint8_t *)&header[5]) + chunk0Length);
-        auto chunk1Length = chunk1Address[0];
-        auto chunk1Type = chunk1Address[1];
         if (chunk1Type == CHUNK_TYPE_BIN && toReturn->buffers->size() > 0)
         {
             auto &buffer0 = (*toReturn->buffers)[0];
@@ -329,8 +540,15 @@ std::shared_ptr<GLTF> GLTF::loadGLB(uint8_t *data, uint64_t size)
             {
                 throw std::invalid_argument("GLB chunk1 incorrect length");
             }
-            buffer0.data.resize(chunk1Length);
-            memcpy(&(buffer0.data[0]), &(chunk1Address[2]), chunk1Length);
+            if (chunk1Length > std::numeric_limits<size_t>::max())
+            {
+                throw std::invalid_argument("GLB BIN chunk too large");
+            }
+            buffer0.data.resize(static_cast<size_t>(chunk1Length));
+            if (chunk1Length > 0)
+            {
+                memcpy(buffer0.data.data(), chunk1Payload, static_cast<size_t>(chunk1Length));
+            }
 
             // Now that the binary buffer is available, decompress any
             // KHR_draco_mesh_compression primitives that reference it, then
@@ -478,6 +696,134 @@ void GLTF::decompressMeshopt(std::shared_ptr<GLTF> &gltf)
     }
 }
 
+/**
+ * Parse a single mesh primitive, including all supported primitive extensions.
+ */
+static Primitive primitiveFromGLTF(const nlohmann::json &primitiveDef)
+{
+    if (!primitiveDef.contains("attributes") || !primitiveDef.at("attributes").is_object())
+        throw std::invalid_argument("Primitive missing required 'attributes' object");
+    auto& attributesDef = primitiveDef.at("attributes");
+    std::unordered_map<std::string, uint64_t> attributes;
+    for (auto &element : attributesDef.items())
+    {
+        attributes[element.key()] = element.value();
+    }
+
+    int64_t indices = primitiveDef.value("indices", -1);
+    int64_t material = primitiveDef.value("material", -1);
+    PrimitiveMode mode = (PrimitiveMode)primitiveDef.value("mode", 4);
+
+    // Morph targets
+    std::vector<std::unordered_map<std::string, uint64_t>> targets;
+    if (primitiveDef.contains("targets") && primitiveDef.at("targets").is_array())
+    {
+        for (auto &targetDef : primitiveDef.at("targets"))
+        {
+            std::unordered_map<std::string, uint64_t> targetAttribs;
+            if (targetDef.is_object())
+            {
+                for (auto &el : targetDef.items())
+                {
+                    targetAttribs[el.key()] = static_cast<uint64_t>(el.value());
+                }
+            }
+            targets.push_back(std::move(targetAttribs));
+        }
+    }
+
+    Primitive primitive(attributes, indices, material, mode, std::move(targets));
+
+    nlohmann::json emptyPrimExt = nlohmann::json::object();
+    nlohmann::json primExtDef = (primitiveDef.contains("extensions") && primitiveDef.at("extensions").is_object())
+        ? primitiveDef["extensions"] : emptyPrimExt;
+
+    // KHR_materials_variants
+    auto variantMappingsDef = primExtDef["KHR_materials_variants"]["mappings"];
+    if (variantMappingsDef.is_array())
+    {
+        for (uint32_t m = 0; m < variantMappingsDef.size(); m++)
+        {
+            auto md = variantMappingsDef[m];
+            int64_t variantMaterial = md.value("material", int64_t(-1));
+            std::vector<uint64_t> variantIndices;
+            intListFromGLTF(variantIndices, md["variants"]);
+            primitive.khrMaterialsVariantsMappings.emplace_back(variantMaterial, std::move(variantIndices));
+        }
+    }
+
+    // KHR_draco_mesh_compression
+    auto &dracoDef = primExtDef["KHR_draco_mesh_compression"];
+    if (dracoDef.is_object())
+    {
+        int64_t dracoBufferView = dracoDef.value("bufferView", int64_t(-1));
+        std::unordered_map<std::string, uint64_t> dracoAttribs;
+        if (dracoDef["attributes"].is_object())
+        {
+            for (auto &el : dracoDef["attributes"].items())
+                dracoAttribs[el.key()] = static_cast<uint64_t>(el.value());
+        }
+        primitive.khrDracoMeshCompression =
+            std::make_shared<KHRDracoMeshCompression>(dracoBufferView, std::move(dracoAttribs));
+    }
+
+    // KHR_gaussian_splatting
+    if (primExtDef["KHR_gaussian_splatting"].is_object())
+    {
+        auto& d = primExtDef["KHR_gaussian_splatting"];
+        primitive.khrGaussianSplatting = std::make_shared<KHRGaussianSplatting>(
+            d.value("kernel", std::string()),
+            d.value("colorSpace", std::string()),
+            d.value("projection", std::string("perspective")),
+            d.value("sortingMethod", std::string("cameraDistance")));
+    }
+
+    // EXT_mesh_primitive_edge_visibility
+    if (primExtDef["EXT_mesh_primitive_edge_visibility"].is_object())
+    {
+        auto& d = primExtDef["EXT_mesh_primitive_edge_visibility"];
+        auto edgeVis = std::make_shared<EXTMeshPrimitiveEdgeVisibility>();
+        edgeVis->visibility = d.value("visibility", int64_t(-1));
+        edgeVis->material = d.value("material", int64_t(-1));
+        edgeVis->silhouetteNormals = d.value("silhouetteNormals", int64_t(-1));
+        auto lineStringsDef = d["lineStrings"];
+        if (lineStringsDef.is_array())
+        {
+            for (uint32_t i = 0; i < lineStringsDef.size(); i++)
+            {
+                auto& ls = lineStringsDef[i];
+                EXTMeshPrimitiveEdgeVisibilityLineString lineString;
+                lineString.indices = ls.value("indices", int64_t(-1));
+                lineString.material = ls.value("material", int64_t(-1));
+                edgeVis->lineStrings.push_back(lineString);
+            }
+        }
+        primitive.extMeshPrimitiveEdgeVisibility = edgeVis;
+    }
+
+    // EXT_mesh_primitive_restart
+    if (primExtDef["EXT_mesh_primitive_restart"].is_object())
+    {
+        auto& d = primExtDef["EXT_mesh_primitive_restart"];
+        auto restart = std::make_shared<EXTMeshPrimitiveRestart>();
+        auto groupsDef = d["primitiveGroups"];
+        if (groupsDef.is_array())
+        {
+            for (uint32_t i = 0; i < groupsDef.size(); i++)
+            {
+                auto& gd = groupsDef[i];
+                EXTMeshPrimitiveRestartGroup group;
+                intListFromGLTF(group.primitives, gd["primitives"]);
+                group.indices = gd.value("indices", int64_t(-1));
+                restart->primitiveGroups.push_back(std::move(group));
+            }
+        }
+        primitive.extMeshPrimitiveRestart = restart;
+    }
+
+    return primitive;
+}
+
 std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
 {
 
@@ -494,9 +840,27 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
     {
         throw std::invalid_argument("Check version issue. Incorrect version format " + version);
     }
-    if (parts[0] != "2")
+    int majorVersion = 0;
+    int minorVersion = 0;
+    try
     {
-        throw std::invalid_argument("Check version issue. Specting version 2.x. Found version " + version);
+        majorVersion = std::stoi(parts[0]);
+        minorVersion = std::stoi(parts[1]);
+    }
+    catch (...)
+    {
+        throw std::invalid_argument("Check version issue. Incorrect version format " + version);
+    }
+    if (majorVersion != 2 || minorVersion < 0)
+    {
+        throw std::invalid_argument("Check version issue. Expecting version 2.x. Found version " + version);
+    }
+
+    int64_t assetThumbnail = -1;
+    auto assetDef = gltfDef["asset"];
+    if (assetDef.is_object() && assetDef.contains("thumbnail") && assetDef.at("thumbnail").is_number())
+    {
+        assetThumbnail = assetDef.at("thumbnail").get<int64_t>();
     }
 
     // check implemented versions
@@ -558,6 +922,7 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
             }
 
             buffers->emplace_back(name, uri, byteLength, data);
+            buffers->back().uid = parseUid(buffer);
         }
     }
 
@@ -587,6 +952,7 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
             int64_t byteStride = bufferView.value("byteStride", -1);
             BufferViewTarget target = (BufferViewTarget)bufferView.value("target", 0);
             bufferViews->emplace_back(name, buffer, byteOffset, byteLength, byteStride, target);
+            bufferViews->back().uid = parseUid(bufferView);
 
             // EXT_meshopt_compression / KHR_meshopt_compression (same structure, two names)
             auto &bvExts = bufferViewsDef[a]["extensions"];
@@ -695,6 +1061,7 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
             }
 
             accessors->emplace_back(name, bufferView, byteOffset, componentType, normalized, count, t);
+            accessors->back().uid = parseUid(accessor);
 
             // sparse
             if (accessor.contains("sparse") && accessor.at("sparse").is_object())
@@ -771,6 +1138,7 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
                     zfar = persp.at("zfar").get<GLTF_REAL_NUMBER_TYPE>();
                 GLTF_REAL_NUMBER_TYPE znear = persp.at("znear").get<GLTF_REAL_NUMBER_TYPE>();
                 cameras->push_back(std::make_shared<PerspectiveCamera>(name, aspectRatio, yfov, zfar, znear));
+                cameras->back()->uid = parseUid(camera);
             }
             else if (type == "orthographic")
             {
@@ -790,6 +1158,7 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
                 GLTF_REAL_NUMBER_TYPE zfar = ortho.at("zfar").get<GLTF_REAL_NUMBER_TYPE>();
                 GLTF_REAL_NUMBER_TYPE znear = ortho.at("znear").get<GLTF_REAL_NUMBER_TYPE>();
                 cameras->push_back(std::make_shared<OrthographicCamera>(name, xmag, ymag, zfar, znear));
+                cameras->back()->uid = parseUid(camera);
             }
             else
             {
@@ -836,6 +1205,47 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
             }
 
             images->emplace_back(name, uri, mimeType, bufferView, data);
+            images->back().uid = parseUid(image);
+        }
+    }
+
+    // Files (glTF 2.1 unified external file references)
+    auto files = std::make_shared<std::vector<File>>();
+    auto filesDef = gltfDef["files"];
+    if (filesDef.is_array())
+    {
+        if (filesDef.size() > GLTF_MAX_ARRAY_ELEMENTS)
+        {
+            throw std::invalid_argument("Too many files: " + std::to_string(filesDef.size()));
+        }
+        files->reserve(filesDef.size());
+        for (uint32_t a = 0; a < filesDef.size(); a++)
+        {
+            auto file = filesDef[a];
+            auto name = file.value("name", "");
+
+            if (!file.contains("mimeType") || !file.at("mimeType").is_string())
+                throw std::invalid_argument("File[" + std::to_string(a) + "] missing required 'mimeType' field");
+            std::string mimeType = file.at("mimeType").get<std::string>();
+
+            std::string uri = file.value("uri", "");
+            int64_t bufferView = file.value("bufferView", -1);
+
+            std::vector<uint8_t> data = {};
+            if (startsWith(uri, "data:"))
+            {
+                auto parts = split(uri, ";base64,");
+                if (parts.size() > 1)
+                {
+                    auto &lastPart = parts[parts.size() - 1];
+                    auto decoded = base64_decode(lastPart);
+                    data = std::vector<uint8_t>(decoded.begin(), decoded.end());
+                    uri = "";
+                }
+            }
+
+            files->emplace_back(name, uri, bufferView, mimeType, data);
+            files->back().uid = parseUid(file);
         }
     }
 
@@ -865,7 +1275,14 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
                 khrTextureBasisuSource = texture["extensions"]["KHR_texture_basisu"].value("source", -1);
             }
 
-            textures->emplace_back(name, sampler, source, extTextureWebp, khrTextureBasisuSource);
+            // EXT_texture_astc
+            int64_t extTextureAstc = -1;
+            if (texture.contains("extensions") && texture["extensions"]["EXT_texture_astc"].is_object()) {
+                extTextureAstc = texture["extensions"]["EXT_texture_astc"].value("source", -1);
+            }
+
+            textures->emplace_back(name, sampler, source, extTextureWebp, khrTextureBasisuSource, extTextureAstc);
+            textures->back().uid = parseUid(texture);
         }
     }
 
@@ -887,6 +1304,7 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
             WrapMode wrapT = (WrapMode)sampler.value("wrapT", uint64_t(10497));
 
             samplers->emplace_back(name, magFilter, minFilter, wrapS, wrapT);
+            samplers->back().uid = parseUid(sampler);
         }
     }
 
@@ -1006,6 +1424,7 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
                 khrMaterialsEmissiveStrength,
                 khrMaterialsIor,
                 khrMaterialsDispersion);
+            mat.uid = parseUid(materialDef);
 
             // KHR_xmp_json_ld
             if (matExtDef["KHR_xmp_json_ld"].is_object())
@@ -1101,6 +1520,17 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
                     d.value("anisotropyRotation", 0.0),
                     textureInfoFromGLTF(d["anisotropyTexture"]));
             }
+
+            // KHR_materials_diffuse_transmission
+            if (matExtDef["KHR_materials_diffuse_transmission"].is_object())
+            {
+                auto& d = matExtDef["KHR_materials_diffuse_transmission"];
+                mat.khrMaterialsDiffuseTransmission = std::make_shared<KHRMaterialsDiffuseTransmission>(
+                    d.value("diffuseTransmissionFactor", 0.0),
+                    textureInfoFromGLTF(d["diffuseTransmissionTexture"]),
+                    vec3FromGLTF(d["diffuseTransmissionColorFactor"], systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE>(1, 1, 1)),
+                    textureInfoFromGLTF(d["diffuseTransmissionColorTexture"]));
+            }
         }
     }
 
@@ -1126,81 +1556,14 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
             std::vector<Primitive> primitives;
             for (int a = 0; a < (int)primitivesDef.size(); a++)
             {
-                auto primitiveDef = primitivesDef[a];
-
-                if (!primitiveDef.contains("attributes") || !primitiveDef.at("attributes").is_object())
-                    throw std::invalid_argument("Primitive[" + std::to_string(a) + "] missing required 'attributes' object");
-                auto& attributesDef = primitiveDef.at("attributes");
-                std::unordered_map<std::string, uint64_t> attributes;
-                for (auto &element : attributesDef.items())
-                {
-                    attributes[element.key()] = element.value();
-                }
-
-                int64_t indices = primitiveDef.value("indices", -1);
-
-                int64_t material = primitiveDef.value("material", -1);
-
-                PrimitiveMode mode = (PrimitiveMode)primitiveDef.value("mode", 4);
-
-                // Morph targets
-                std::vector<std::unordered_map<std::string, uint64_t>> targets;
-                if (primitiveDef.contains("targets") && primitiveDef.at("targets").is_array())
-                {
-                    for (auto &targetDef : primitiveDef.at("targets"))
-                    {
-                        std::unordered_map<std::string, uint64_t> targetAttribs;
-                        if (targetDef.is_object())
-                        {
-                            for (auto &el : targetDef.items())
-                            {
-                                targetAttribs[el.key()] = static_cast<uint64_t>(el.value());
-                            }
-                        }
-                        targets.push_back(std::move(targetAttribs));
-                    }
-                }
-
-                primitives.emplace_back(attributes, indices, material, mode, std::move(targets));
-
-                nlohmann::json emptyPrimExt = nlohmann::json::object();
-                nlohmann::json& primExtDef = (primitiveDef.contains("extensions") && primitiveDef.at("extensions").is_object())
-                    ? primitiveDef["extensions"] : emptyPrimExt;
-
-                // KHR_materials_variants
-                auto variantMappingsDef = primExtDef["KHR_materials_variants"]["mappings"];
-                if (variantMappingsDef.is_array())
-                {
-                    for (uint32_t m = 0; m < variantMappingsDef.size(); m++)
-                    {
-                        auto md = variantMappingsDef[m];
-                        int64_t variantMaterial = md.value("material", int64_t(-1));
-                        std::vector<uint64_t> variantIndices;
-                        intListFromGLTF(variantIndices, md["variants"]);
-                        primitives.back().khrMaterialsVariantsMappings.emplace_back(variantMaterial, std::move(variantIndices));
-                    }
-                }
-
-                // KHR_draco_mesh_compression
-                auto &dracoDef = primExtDef["KHR_draco_mesh_compression"];
-                if (dracoDef.is_object())
-                {
-                    int64_t dracoBufferView = dracoDef.value("bufferView", int64_t(-1));
-                    std::unordered_map<std::string, uint64_t> dracoAttribs;
-                    if (dracoDef["attributes"].is_object())
-                    {
-                        for (auto &el : dracoDef["attributes"].items())
-                            dracoAttribs[el.key()] = static_cast<uint64_t>(el.value());
-                    }
-                    primitives.back().khrDracoMeshCompression =
-                        std::make_shared<KHRDracoMeshCompression>(dracoBufferView, std::move(dracoAttribs));
-                }
+                primitives.push_back(primitiveFromGLTF(primitivesDef[a]));
             }
 
             std::vector<GLTF_REAL_NUMBER_TYPE> weights;
             realListFromGLTF(weights, meshDef["weights"]);
 
             meshes->emplace_back(name, primitives, weights);
+            meshes->back().uid = parseUid(meshDef);
 
             nlohmann::json emptyMeshExt = nlohmann::json::object();
             nlohmann::json& meshExtDef = (meshDef.contains("extensions") && meshDef.at("extensions").is_object())
@@ -1209,6 +1572,124 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
             {
                 meshes->back().khrXmpPacket = meshExtDef["KHR_xmp_json_ld"].value("packet", int64_t(-1));
             }
+
+            // EXT_mesh_manifold
+            if (meshExtDef["EXT_mesh_manifold"].is_object())
+            {
+                auto& d = meshExtDef["EXT_mesh_manifold"];
+                Primitive manifoldPrimitive = d.contains("manifoldPrimitive")
+                    ? primitiveFromGLTF(d["manifoldPrimitive"])
+                    : Primitive({}, -1, -1, PrimitiveMode::pmTriangles, {});
+                int64_t mergeIndices = d.value("mergeIndices", int64_t(-1));
+                int64_t mergeValues = d.value("mergeValues", int64_t(-1));
+                meshes->back().extMeshManifold =
+                    std::make_shared<EXTMeshManifold>(manifoldPrimitive, mergeIndices, mergeValues);
+            }
+        }
+    }
+
+    // Shapes (glTF 2.1 implicit geometric primitives)
+    auto shapes = std::make_shared<std::vector<std::shared_ptr<Shape>>>();
+    auto shapesDef = gltfDef["shapes"];
+    if (shapesDef.is_array())
+    {
+        if (shapesDef.size() > GLTF_MAX_ARRAY_ELEMENTS)
+        {
+            throw std::invalid_argument("Too many shapes: " + std::to_string(shapesDef.size()));
+        }
+        shapes->reserve(shapesDef.size());
+        for (uint32_t a = 0; a < shapesDef.size(); a++)
+        {
+            auto shape = shapesDef[a];
+            auto name = shape.value("name", "");
+
+            if (!shape.contains("type") || !shape.at("type").is_string())
+                throw std::invalid_argument("Shape[" + std::to_string(a) + "] missing required 'type' field");
+            std::string type = shape.at("type").get<std::string>();
+
+            std::shared_ptr<Shape> parsedShape = nullptr;
+            if (type == "box")
+            {
+                auto &boxDef = shape["box"];
+                if (!boxDef.is_object())
+                    throw std::invalid_argument("Shape[" + std::to_string(a) + "] box missing 'box' object");
+                auto size = vec3FromGLTF(boxDef["size"], systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE>(1.0, 1.0, 1.0));
+                parsedShape = std::make_shared<BoxShape>(name, size);
+            }
+            else if (type == "sphere")
+            {
+                auto &sphereDef = shape["sphere"];
+                if (!sphereDef.is_object())
+                    throw std::invalid_argument("Shape[" + std::to_string(a) + "] sphere missing 'sphere' object");
+                GLTF_REAL_NUMBER_TYPE radius = sphereDef.value("radius", GLTF_REAL_NUMBER_TYPE(1.0));
+                parsedShape = std::make_shared<SphereShape>(name, radius);
+            }
+            else if (type == "capsule")
+            {
+                auto &capsuleDef = shape["capsule"];
+                if (!capsuleDef.is_object())
+                    throw std::invalid_argument("Shape[" + std::to_string(a) + "] capsule missing 'capsule' object");
+                GLTF_REAL_NUMBER_TYPE height = capsuleDef.value("height", GLTF_REAL_NUMBER_TYPE(1.0));
+                GLTF_REAL_NUMBER_TYPE radiusTop = capsuleDef.value("radiusTop", GLTF_REAL_NUMBER_TYPE(0.5));
+                GLTF_REAL_NUMBER_TYPE radiusBottom = capsuleDef.value("radiusBottom", GLTF_REAL_NUMBER_TYPE(0.5));
+                parsedShape = std::make_shared<CapsuleShape>(name, height, radiusTop, radiusBottom);
+            }
+            else if (type == "cylinder")
+            {
+                auto &cylinderDef = shape["cylinder"];
+                if (!cylinderDef.is_object())
+                    throw std::invalid_argument("Shape[" + std::to_string(a) + "] cylinder missing 'cylinder' object");
+                GLTF_REAL_NUMBER_TYPE height = cylinderDef.value("height", GLTF_REAL_NUMBER_TYPE(1.0));
+                GLTF_REAL_NUMBER_TYPE radiusTop = cylinderDef.value("radiusTop", GLTF_REAL_NUMBER_TYPE(0.5));
+                GLTF_REAL_NUMBER_TYPE radiusBottom = cylinderDef.value("radiusBottom", GLTF_REAL_NUMBER_TYPE(0.5));
+                parsedShape = std::make_shared<CylinderShape>(name, height, radiusTop, radiusBottom);
+            }
+            else if (type == "plane")
+            {
+                auto &planeDef = shape["plane"];
+                if (!planeDef.is_object())
+                    throw std::invalid_argument("Shape[" + std::to_string(a) + "] plane missing 'plane' object");
+                bool doubleSided = planeDef.value("doubleSided", false);
+                std::optional<GLTF_REAL_NUMBER_TYPE> sizeX;
+                std::optional<GLTF_REAL_NUMBER_TYPE> sizeZ;
+                if (planeDef.contains("sizeX") && planeDef.at("sizeX").is_number())
+                    sizeX = planeDef.at("sizeX").get<GLTF_REAL_NUMBER_TYPE>();
+                if (planeDef.contains("sizeZ") && planeDef.at("sizeZ").is_number())
+                    sizeZ = planeDef.at("sizeZ").get<GLTF_REAL_NUMBER_TYPE>();
+                parsedShape = std::make_shared<PlaneShape>(name, doubleSided, sizeX, sizeZ);
+            }
+            else
+            {
+                throw std::invalid_argument("Shape[" + std::to_string(a) + "] unsupported type: " + type);
+            }
+
+            if (parsedShape)
+            {
+                parsedShape->uid = parseUid(shape);
+                shapes->push_back(parsedShape);
+            }
+        }
+    }
+
+    // External assets (glTF 2.1 complex scene composition)
+    auto externalAssets = std::make_shared<std::vector<ExternalAsset>>();
+    auto externalAssetsDef = gltfDef["externalAssets"];
+    if (externalAssetsDef.is_array())
+    {
+        if (externalAssetsDef.size() > GLTF_MAX_ARRAY_ELEMENTS)
+        {
+            throw std::invalid_argument("Too many externalAssets: " + std::to_string(externalAssetsDef.size()));
+        }
+        externalAssets->reserve(externalAssetsDef.size());
+        for (uint32_t a = 0; a < externalAssetsDef.size(); a++)
+        {
+            auto extAsset = externalAssetsDef[a];
+            auto name = extAsset.value("name", "");
+            if (!extAsset.contains("file") || !extAsset.at("file").is_number())
+                throw std::invalid_argument("ExternalAsset[" + std::to_string(a) + "] missing required 'file' field");
+            int64_t fileIndex = extAsset.at("file").get<int64_t>();
+            externalAssets->emplace_back(name, fileIndex);
+            externalAssets->back().uid = parseUid(extAsset);
         }
     }
 
@@ -1248,9 +1729,61 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
             std::vector<GLTF_REAL_NUMBER_TYPE> weights;
             realListFromGLTF(weights, nodeDef["weights"]);
 
+            bool visible = nodeDef.value("visible", true);
+
+            int64_t nodeExternalAsset = nodeDef.value("externalAsset", -1);
+
+            std::shared_ptr<BoundingVolume> nodeBoundingVolume = nullptr;
+            auto boundingVolumeDef = nodeDef["boundingVolume"];
+            if (boundingVolumeDef.is_object())
+            {
+                if (!boundingVolumeDef.contains("shape") || !boundingVolumeDef.at("shape").is_number())
+                    throw std::invalid_argument("Node[" + std::to_string(a) + "] boundingVolume missing required 'shape' field");
+                int64_t shapeIndex = boundingVolumeDef.at("shape").get<int64_t>();
+                if (boundingVolumeDef.contains("matrix") && boundingVolumeDef.at("matrix").is_array())
+                {
+                    auto matrix = mat4FromGLTF(boundingVolumeDef["matrix"], systems::leal::vector_math::Matrix4<GLTF_REAL_NUMBER_TYPE>::identity());
+                    nodeBoundingVolume = std::make_shared<BoundingVolume>(shapeIndex, matrix);
+                }
+                else
+                {
+                    nodeBoundingVolume = std::make_shared<BoundingVolume>(shapeIndex);
+                }
+            }
+
             nlohmann::json emptyNodeExt = nlohmann::json::object();
             nlohmann::json& nodeExtDef = (nodeDef.contains("extensions") && nodeDef.at("extensions").is_object())
                 ? nodeDef["extensions"] : emptyNodeExt;
+
+            // KHR_node_visibility: promoted to core in glTF 2.1 as node.visible.
+            // Continue to support the extension form for glTF 2.0 assets.
+            if (!nodeDef.contains("visible") && nodeExtDef["KHR_node_visibility"].is_object())
+            {
+                visible = nodeExtDef["KHR_node_visibility"].value("visible", true);
+            }
+
+            // KHR_node_hoverability / KHR_node_selectability
+            bool hoverable = nodeDef.value("hoverable", true);
+            bool selectable = nodeDef.value("selectable", true);
+            if (nodeExtDef["KHR_node_hoverability"].is_object())
+            {
+                hoverable = nodeExtDef["KHR_node_hoverability"].value("hoverable", true);
+            }
+            if (nodeExtDef["KHR_node_selectability"].is_object())
+            {
+                selectable = nodeExtDef["KHR_node_selectability"].value("selectable", true);
+            }
+
+            // EXT_lights_ies
+            std::shared_ptr<EXTNodeLightsIES> extNodeLightsIes = nullptr;
+            if (nodeExtDef["EXT_lights_ies"].is_object())
+            {
+                auto& d = nodeExtDef["EXT_lights_ies"];
+                extNodeLightsIes = std::make_shared<EXTNodeLightsIES>(
+                    d.value("light", int64_t(-1)),
+                    d.value("multiplier", 1.0),
+                    vec3FromGLTF(d["color"], systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE>(1, 1, 1)));
+            }
 
             auto khrLightsPunctual = nodeExtDef["KHR_lights_punctual"];
             int64_t light = -1;
@@ -1285,10 +1818,17 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
                 scale,
                 translation,
                 weights,
+                visible,
                 light,
                 extMeshGpuInstancing
             );
             nodes->back().khrXmpPacket = nodeXmpPacket;
+            nodes->back().externalAsset = nodeExternalAsset;
+            nodes->back().boundingVolume = nodeBoundingVolume;
+            nodes->back().hoverable = hoverable;
+            nodes->back().selectable = selectable;
+            nodes->back().extLightsIes = extNodeLightsIes;
+            nodes->back().uid = parseUid(nodeDef);
         }
     }
 
@@ -1304,6 +1844,12 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
             auto scene = scenesDef[a];
             auto name = scene.value("name","");
             scenes->emplace_back(name, uintListFromGLTF(scene["nodes"]));
+            scenes->back().uid = parseUid(scene);
+
+            if (scene.contains("extensions") && scene["extensions"]["EXT_lights_image_based"].is_object())
+            {
+                scenes->back().extLightImageBased = scene["extensions"]["EXT_lights_image_based"].value("light", int64_t(-1));
+            }
         }
     }
 
@@ -1324,6 +1870,7 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
                 if (joint >= nodes->size())
                     throw std::invalid_argument("Skin joint index out of range");
             skins->emplace_back(name, inverseBindMatrices, skeleton, joints);
+            skins->back().uid = parseUid(skin);
         }
     }
 
@@ -1391,6 +1938,7 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
             }
 
             animations->emplace_back(animName, animChannels, animSamplers);
+            animations->back().uid = parseUid(animDef);
         }
     }
 
@@ -1438,6 +1986,7 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
                 range,
                 innerConeAngle,
                 outerConeAngle);
+            khrLightsPunctual->back().uid = parseUid(light);
         }
     }
 
@@ -1466,6 +2015,73 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
         }
     }
 
+    // EXT_lights_ies
+    auto extLightsIes = std::make_shared<std::vector<EXTLightIESProfile>>();
+    auto extLightsIesDef = gltfDef["extensions"]["EXT_lights_ies"]["lights"];
+    if (extLightsIesDef.is_array())
+    {
+        extLightsIes->reserve(extLightsIesDef.size());
+        for (uint32_t a = 0; a < extLightsIesDef.size(); a++)
+        {
+            auto& light = extLightsIesDef[a];
+            extLightsIes->emplace_back(light.value("name", ""));
+            extLightsIes->back().uri = light.value("uri", "");
+            extLightsIes->back().mimeType = light.value("mimeType", "");
+            extLightsIes->back().bufferView = light.value("bufferView", int64_t(-1));
+            extLightsIes->back().uid = parseUid(light);
+        }
+    }
+
+    // EXT_lights_image_based
+    auto extLightsImageBased = std::make_shared<std::vector<EXTLightImageBased>>();
+    auto extLightsImageBasedDef = gltfDef["extensions"]["EXT_lights_image_based"]["lights"];
+    if (extLightsImageBasedDef.is_array())
+    {
+        extLightsImageBased->reserve(extLightsImageBasedDef.size());
+        for (uint32_t a = 0; a < extLightsImageBasedDef.size(); a++)
+        {
+            auto& light = extLightsImageBasedDef[a];
+            extLightsImageBased->emplace_back(light.value("name", ""));
+            extLightsImageBased->back().rotation = quatFromGLTF(
+                light["rotation"],
+                systems::leal::vector_math::Quaternion<GLTF_REAL_NUMBER_TYPE>(0, 0, 0, 1));
+            extLightsImageBased->back().intensity = light.value("intensity", 1.0);
+            extLightsImageBased->back().specularImageSize = light.value("specularImageSize", uint64_t(0));
+
+            auto& irrDef = light["irradianceCoefficients"];
+            if (irrDef.is_array())
+            {
+                for (uint32_t i = 0; i < irrDef.size(); i++)
+                {
+                    std::array<GLTF_REAL_NUMBER_TYPE, 3> coeff{0, 0, 0};
+                    if (irrDef[i].is_array() && irrDef[i].size() >= 3)
+                    {
+                        coeff[0] = irrDef[i][0];
+                        coeff[1] = irrDef[i][1];
+                        coeff[2] = irrDef[i][2];
+                    }
+                    extLightsImageBased->back().irradianceCoefficients.push_back(coeff);
+                }
+            }
+
+            auto& specDef = light["specularImages"];
+            if (specDef.is_array())
+            {
+                for (uint32_t i = 0; i < specDef.size(); i++)
+                {
+                    std::vector<uint64_t> faces;
+                    if (specDef[i].is_array())
+                    {
+                        for (uint32_t f = 0; f < specDef[i].size(); f++)
+                            faces.push_back(specDef[i][f]);
+                    }
+                    extLightsImageBased->back().specularImages.push_back(std::move(faces));
+                }
+            }
+            extLightsImageBased->back().uid = parseUid(light);
+        }
+    }
+
     auto toReturn = std::shared_ptr<GLTF>(new GLTF(
         buffers,
         bufferViews,
@@ -1482,7 +2098,90 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
         animations,
         skins,
         khrLightsPunctual,
-        khrTextureProcedurals));
+        khrTextureProcedurals,
+        extLightsIes,
+        extLightsImageBased));
+
+    toReturn->files = files;
+    toReturn->shapes = shapes;
+    toReturn->externalAssets = externalAssets;
+    toReturn->thumbnail = assetThumbnail;
+
+    // Validate glTF 2.1 cross-references for new top-level arrays.
+    if (assetThumbnail >= 0 && static_cast<uint64_t>(assetThumbnail) >= images->size())
+    {
+        throw std::invalid_argument("asset.thumbnail references out-of-range image index " + std::to_string(assetThumbnail));
+    }
+
+    for (uint32_t a = 0; a < files->size(); a++)
+    {
+        const auto &file = (*files)[a];
+        if (file.bufferView != -1 && static_cast<uint64_t>(file.bufferView) >= bufferViews->size())
+        {
+            throw std::invalid_argument("File[" + std::to_string(a) + "] references out-of-range bufferView index " + std::to_string(file.bufferView));
+        }
+    }
+
+    for (uint32_t a = 0; a < externalAssets->size(); a++)
+    {
+        int64_t fileIndex = (*externalAssets)[a].file;
+        if (fileIndex < 0 || static_cast<uint64_t>(fileIndex) >= files->size())
+        {
+            throw std::invalid_argument("ExternalAsset[" + std::to_string(a) + "] references out-of-range file index " + std::to_string(fileIndex));
+        }
+    }
+
+    for (uint32_t a = 0; a < nodes->size(); a++)
+    {
+        const auto &node = (*nodes)[a];
+        if (node.externalAsset != -1 && static_cast<uint64_t>(node.externalAsset) >= externalAssets->size())
+        {
+            throw std::invalid_argument("Node[" + std::to_string(a) + "] references out-of-range externalAsset index " + std::to_string(node.externalAsset));
+        }
+        if (node.boundingVolume != nullptr)
+        {
+            if (node.boundingVolume->shape < 0 || static_cast<uint64_t>(node.boundingVolume->shape) >= shapes->size())
+            {
+                throw std::invalid_argument("Node[" + std::to_string(a) + "] boundingVolume references out-of-range shape index " + std::to_string(node.boundingVolume->shape));
+            }
+        }
+    }
+
+    // Validate mesh/primitive extension cross-references.
+    for (uint32_t m = 0; m < meshes->size(); m++)
+    {
+        const auto &mesh = (*meshes)[m];
+        for (uint32_t p = 0; p < mesh.primitives.size(); p++)
+        {
+            const auto &primitive = mesh.primitives[p];
+            if (primitive.extMeshPrimitiveRestart != nullptr)
+            {
+                for (uint32_t g = 0; g < primitive.extMeshPrimitiveRestart->primitiveGroups.size(); g++)
+                {
+                    const auto &group = primitive.extMeshPrimitiveRestart->primitiveGroups[g];
+                    for (auto primIdx : group.primitives)
+                    {
+                        if (primIdx >= mesh.primitives.size())
+                        {
+                            throw std::invalid_argument("EXT_mesh_primitive_restart group references out-of-range primitive index " + std::to_string(primIdx));
+                        }
+                    }
+                }
+            }
+        }
+
+        if (mesh.extMeshManifold != nullptr)
+        {
+            if (mesh.extMeshManifold->mergeIndices != -1 && static_cast<uint64_t>(mesh.extMeshManifold->mergeIndices) >= accessors->size())
+            {
+                throw std::invalid_argument("Mesh[" + std::to_string(m) + "] EXT_mesh_manifold mergeIndices references out-of-range accessor index " + std::to_string(mesh.extMeshManifold->mergeIndices));
+            }
+            if (mesh.extMeshManifold->mergeValues != -1 && static_cast<uint64_t>(mesh.extMeshManifold->mergeValues) >= accessors->size())
+            {
+                throw std::invalid_argument("Mesh[" + std::to_string(m) + "] EXT_mesh_manifold mergeValues references out-of-range accessor index " + std::to_string(mesh.extMeshManifold->mergeValues));
+            }
+        }
+    }
 
     // KHR_materials_variants (top-level variants array)
     auto khrMaterialsVariantsDef = gltfDef["extensions"]["KHR_materials_variants"]["variants"];
@@ -1524,6 +2223,28 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
     // EXT_meshopt_compression — same pattern: decompress buffer views whose
     // data is already available. GLB calls this again after filling chunk 1.
     GLTF::decompressMeshopt(toReturn);
+
+    // Validate glTF 2.1 unique identifiers.
+    validateUids(
+        *toReturn->buffers,
+        *toReturn->bufferViews,
+        *toReturn->accessors,
+        *toReturn->cameras,
+        *toReturn->images,
+        *toReturn->textures,
+        *toReturn->scenes,
+        *toReturn->nodes,
+        *toReturn->samplers,
+        *toReturn->meshes,
+        *toReturn->materials,
+        *toReturn->animations,
+        *toReturn->skins,
+        toReturn->khrLightsPunctual ? *toReturn->khrLightsPunctual : std::vector<KHRLightPunctual>{},
+        toReturn->extLightsIes ? *toReturn->extLightsIes : std::vector<EXTLightIESProfile>{},
+        toReturn->extLightsImageBased ? *toReturn->extLightsImageBased : std::vector<EXTLightImageBased>{},
+        toReturn->files ? *toReturn->files : std::vector<File>{},
+        toReturn->shapes ? *toReturn->shapes : std::vector<std::shared_ptr<Shape>>{},
+        toReturn->externalAssets ? *toReturn->externalAssets : std::vector<ExternalAsset>{});
 
     return toReturn;
 }
@@ -1624,6 +2345,10 @@ std::string GLTF::toString()
     ss << "materials: " << materials->size() << ", ";
     ss << "animations: " << animations->size() << ", ";
     ss << "skins: " << skins->size() << ", ";
+    ss << "files: " << (files ? std::to_string(files->size()) : "0") << ", ";
+    ss << "shapes: " << (shapes ? std::to_string(shapes->size()) : "0") << ", ";
+    ss << "externalAssets: " << (externalAssets ? std::to_string(externalAssets->size()) : "0") << ", ";
+    ss << "thumbnail: " << thumbnail << ", ";
     ss << "khrLightsPunctual: " << khrLightsPunctual->size() << ", ";
     ss << "khrTextureProcedurals: " << (khrTextureProcedurals ? std::to_string(khrTextureProcedurals->procedurals.size()) : "0") << "}";
     return ss.str();

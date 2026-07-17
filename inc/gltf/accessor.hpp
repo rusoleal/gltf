@@ -20,8 +20,13 @@ namespace systems::leal::gltf
         ctUnsignedByte = 5121,
         ctShort = 5122,
         ctUnsignedShort = 5123,
+        ctSignedInt = 5124,      // glTF 2.1
         ctUnsignedInt = 5125,
         ctFloat = 5126,
+        ctDouble = 5130,         // glTF 2.1
+        ctHalfFloat = 5131,      // glTF 2.1
+        ctSignedInt64 = 5134,    // glTF 2.1
+        ctUnsignedInt64 = 5135,  // glTF 2.1
     };
 
     /**

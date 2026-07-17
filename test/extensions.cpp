@@ -2113,3 +2113,442 @@ TEST_F(KHRTextureProceduralsTest, FallbackTextureIndexPreserved)
     ASSERT_NE(mat->pbrMetallicRoughness->baseColorTexture, nullptr);
     EXPECT_EQ(mat->pbrMetallicRoughness->baseColorTexture->index, 0u);
 }
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 23.  KHR_node_hoverability / KHR_node_selectability
+// ─────────────────────────────────────────────────────────────────────────────
+
+static const std::string kNodeHoverabilitySelectabilityJSON = R"({
+  "asset": {"version": "2.0"},
+  "extensionsUsed": ["KHR_node_hoverability", "KHR_node_selectability"],
+  "nodes": [
+    {"name": "Default"},
+    {
+      "name": "Disabled",
+      "extensions": {
+        "KHR_node_hoverability": {"hoverable": false},
+        "KHR_node_selectability": {"selectable": false}
+      }
+    }
+  ]
+})";
+
+TEST(NodeHoverabilitySelectabilityTest, DefaultsToTrue)
+{
+    auto asset = loadInline(kNodeHoverabilitySelectabilityJSON);
+    ASSERT_NE(asset, nullptr);
+    ASSERT_EQ(asset->nodes->size(), 2u);
+    EXPECT_TRUE((*asset->nodes)[0].hoverable);
+    EXPECT_TRUE((*asset->nodes)[0].selectable);
+}
+
+TEST(NodeHoverabilitySelectabilityTest, ExtensionValuesParsed)
+{
+    auto asset = loadInline(kNodeHoverabilitySelectabilityJSON);
+    ASSERT_NE(asset, nullptr);
+    const auto &node = (*asset->nodes)[1];
+    EXPECT_FALSE(node.hoverable);
+    EXPECT_FALSE(node.selectable);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 24.  KHR_materials_diffuse_transmission
+// ─────────────────────────────────────────────────────────────────────────────
+
+static const std::string kMaterialsDiffuseTransmissionJSON = R"({
+  "asset": {"version": "2.0"},
+  "extensionsUsed": ["KHR_materials_diffuse_transmission"],
+  "images": [{"uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVQI12P4z/AfAAQAAf/zKSWvAAAAAElFTkSuQmCC"}],
+  "textures": [{"source": 0}, {"source": 0}],
+  "materials": [
+    {
+      "name": "DiffuseTransmissionMat",
+      "extensions": {
+        "KHR_materials_diffuse_transmission": {
+          "diffuseTransmissionFactor": 0.75,
+          "diffuseTransmissionTexture": {"index": 0, "texCoord": 1},
+          "diffuseTransmissionColorFactor": [1.0, 0.5, 0.25],
+          "diffuseTransmissionColorTexture": {"index": 1, "texCoord": 2}
+        }
+      }
+    }
+  ]
+})";
+
+class KHRMaterialsDiffuseTransmissionTest : public testing::Test {
+protected:
+    std::shared_ptr<GLTF> asset;
+    KHRMaterialsDiffuseTransmissionTest() { asset = loadInline(kMaterialsDiffuseTransmissionJSON); }
+};
+
+TEST_F(KHRMaterialsDiffuseTransmissionTest, ExtensionParsed)
+{
+    const Material *mat = findMaterial(asset, "DiffuseTransmissionMat");
+    ASSERT_NE(mat, nullptr);
+    ASSERT_NE(mat->khrMaterialsDiffuseTransmission, nullptr);
+}
+
+TEST_F(KHRMaterialsDiffuseTransmissionTest, FactorAndColor)
+{
+    const Material *mat = findMaterial(asset, "DiffuseTransmissionMat");
+    ASSERT_NE(mat, nullptr);
+    const auto &dt = *mat->khrMaterialsDiffuseTransmission;
+    EXPECT_NEAR(dt.diffuseTransmissionFactor, 0.75, 1e-6);
+    EXPECT_NEAR(dt.diffuseTransmissionColorFactor.x(), 1.0, 1e-6);
+    EXPECT_NEAR(dt.diffuseTransmissionColorFactor.y(), 0.5, 1e-6);
+    EXPECT_NEAR(dt.diffuseTransmissionColorFactor.z(), 0.25, 1e-6);
+}
+
+TEST_F(KHRMaterialsDiffuseTransmissionTest, Textures)
+{
+    const Material *mat = findMaterial(asset, "DiffuseTransmissionMat");
+    ASSERT_NE(mat, nullptr);
+    const auto &dt = *mat->khrMaterialsDiffuseTransmission;
+    ASSERT_NE(dt.diffuseTransmissionTexture, nullptr);
+    EXPECT_EQ(dt.diffuseTransmissionTexture->index, 0u);
+    EXPECT_EQ(dt.diffuseTransmissionTexture->texCoord, 1u);
+    ASSERT_NE(dt.diffuseTransmissionColorTexture, nullptr);
+    EXPECT_EQ(dt.diffuseTransmissionColorTexture->index, 1u);
+    EXPECT_EQ(dt.diffuseTransmissionColorTexture->texCoord, 2u);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 25.  EXT_texture_astc
+// ─────────────────────────────────────────────────────────────────────────────
+
+static const std::string kTextureAstcJSON = R"({
+  "asset": {"version": "2.0"},
+  "extensionsUsed": ["EXT_texture_astc"],
+  "images": [{"uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVQI12P4z/AfAAQAAf/zKSWvAAAAAElFTkSuQmCC"}],
+  "textures": [
+    {
+      "source": 0,
+      "extensions": {
+        "EXT_texture_astc": {"source": 1}
+      }
+    }
+  ]
+})";
+
+TEST(EXTTextureAstcTest, AstcSourceParsed)
+{
+    auto asset = loadInline(kTextureAstcJSON);
+    ASSERT_NE(asset, nullptr);
+    ASSERT_EQ(asset->textures->size(), 1u);
+    EXPECT_EQ((*asset->textures)[0].source, 0);
+    EXPECT_EQ((*asset->textures)[0].ext_texture_astc, 1);
+}
+
+TEST(EXTTextureAstcTest, AbsentIsMinusOne)
+{
+    static const std::string kNoAstcTextureJSON = R"({
+      "asset": {"version": "2.0"},
+      "images": [{"uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVQI12P4z/AfAAQAAf/zKSWvAAAAAElFTkSuQmCC"}],
+      "textures": [{"source": 0}]
+    })";
+    auto asset = loadInline(kNoAstcTextureJSON);
+    ASSERT_NE(asset, nullptr);
+    ASSERT_FALSE(asset->textures->empty());
+    EXPECT_EQ((*asset->textures)[0].ext_texture_astc, -1);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 26.  KHR_gaussian_splatting
+// ─────────────────────────────────────────────────────────────────────────────
+
+static const std::string kGaussianSplattingJSON = R"({
+  "asset": {"version": "2.0"},
+  "extensionsUsed": ["KHR_gaussian_splatting"],
+  "meshes": [
+    {
+      "name": "SplatMesh",
+      "primitives": [
+        {
+          "attributes": {"POSITION": 0},
+          "extensions": {
+            "KHR_gaussian_splatting": {
+              "kernel": "ellipse",
+              "colorSpace": "srgb_rec709_display",
+              "projection": "orthographic",
+              "sortingMethod": "depth"
+            }
+          }
+        }
+      ]
+    }
+  ]
+})";
+
+TEST(KHRGaussianSplattingTest, ExtensionParsed)
+{
+    auto asset = loadInline(kGaussianSplattingJSON);
+    ASSERT_NE(asset, nullptr);
+    const auto &mesh = (*asset->meshes)[0];
+    const auto &prim = mesh.primitives[0];
+    ASSERT_NE(prim.khrGaussianSplatting, nullptr);
+    EXPECT_EQ(prim.khrGaussianSplatting->kernel, "ellipse");
+    EXPECT_EQ(prim.khrGaussianSplatting->colorSpace, "srgb_rec709_display");
+    EXPECT_EQ(prim.khrGaussianSplatting->projection, "orthographic");
+    EXPECT_EQ(prim.khrGaussianSplatting->sortingMethod, "depth");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 27.  EXT_mesh_primitive_edge_visibility
+// ─────────────────────────────────────────────────────────────────────────────
+
+static const std::string kMeshPrimitiveEdgeVisibilityJSON = R"({
+  "asset": {"version": "2.0"},
+  "extensionsUsed": ["EXT_mesh_primitive_edge_visibility"],
+  "meshes": [
+    {
+      "name": "EdgeMesh",
+      "primitives": [
+        {
+          "attributes": {"POSITION": 0},
+          "extensions": {
+            "EXT_mesh_primitive_edge_visibility": {
+              "visibility": 1,
+              "material": 2,
+              "silhouetteNormals": 3,
+              "lineStrings": [
+                {"indices": 4, "material": 5},
+                {"indices": 6}
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+})";
+
+TEST(EXTMeshPrimitiveEdgeVisibilityTest, ExtensionParsed)
+{
+    auto asset = loadInline(kMeshPrimitiveEdgeVisibilityJSON);
+    ASSERT_NE(asset, nullptr);
+    const auto &prim = (*asset->meshes)[0].primitives[0];
+    ASSERT_NE(prim.extMeshPrimitiveEdgeVisibility, nullptr);
+    EXPECT_EQ(prim.extMeshPrimitiveEdgeVisibility->visibility, 1);
+    EXPECT_EQ(prim.extMeshPrimitiveEdgeVisibility->material, 2);
+    EXPECT_EQ(prim.extMeshPrimitiveEdgeVisibility->silhouetteNormals, 3);
+    ASSERT_EQ(prim.extMeshPrimitiveEdgeVisibility->lineStrings.size(), 2u);
+    EXPECT_EQ(prim.extMeshPrimitiveEdgeVisibility->lineStrings[0].indices, 4);
+    EXPECT_EQ(prim.extMeshPrimitiveEdgeVisibility->lineStrings[0].material, 5);
+    EXPECT_EQ(prim.extMeshPrimitiveEdgeVisibility->lineStrings[1].indices, 6);
+    EXPECT_EQ(prim.extMeshPrimitiveEdgeVisibility->lineStrings[1].material, -1);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 28.  EXT_mesh_primitive_restart
+// ─────────────────────────────────────────────────────────────────────────────
+
+static const std::string kMeshPrimitiveRestartJSON = R"({
+  "asset": {"version": "2.0"},
+  "extensionsUsed": ["EXT_mesh_primitive_restart"],
+  "meshes": [
+    {
+      "name": "RestartMesh",
+      "primitives": [
+        {
+          "attributes": {"POSITION": 0},
+          "extensions": {
+            "EXT_mesh_primitive_restart": {
+              "primitiveGroups": [
+                {"primitives": [0, 1], "indices": 2},
+                {"primitives": [1, 0], "indices": 3}
+              ]
+            }
+          }
+        },
+        {"attributes": {"POSITION": 0}}
+      ]
+    }
+  ]
+})";
+
+TEST(EXTMeshPrimitiveRestartTest, GroupsParsed)
+{
+    auto asset = loadInline(kMeshPrimitiveRestartJSON);
+    ASSERT_NE(asset, nullptr);
+    const auto &prim = (*asset->meshes)[0].primitives[0];
+    ASSERT_NE(prim.extMeshPrimitiveRestart, nullptr);
+    ASSERT_EQ(prim.extMeshPrimitiveRestart->primitiveGroups.size(), 2u);
+    EXPECT_EQ(prim.extMeshPrimitiveRestart->primitiveGroups[0].primitives.size(), 2u);
+    EXPECT_EQ(prim.extMeshPrimitiveRestart->primitiveGroups[0].primitives[0], 0u);
+    EXPECT_EQ(prim.extMeshPrimitiveRestart->primitiveGroups[0].primitives[1], 1u);
+    EXPECT_EQ(prim.extMeshPrimitiveRestart->primitiveGroups[0].indices, 2);
+    ASSERT_EQ(prim.extMeshPrimitiveRestart->primitiveGroups[1].primitives.size(), 2u);
+    EXPECT_EQ(prim.extMeshPrimitiveRestart->primitiveGroups[1].primitives[0], 1u);
+    EXPECT_EQ(prim.extMeshPrimitiveRestart->primitiveGroups[1].primitives[1], 0u);
+    EXPECT_EQ(prim.extMeshPrimitiveRestart->primitiveGroups[1].indices, 3);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 29.  EXT_mesh_manifold
+// ─────────────────────────────────────────────────────────────────────────────
+
+static const std::string kMeshManifoldJSON = R"({
+  "asset": {"version": "2.0"},
+  "extensionsUsed": ["EXT_mesh_manifold"],
+  "accessors": [
+    {"componentType": 5126, "count": 3, "type": "VEC3"},
+    {"componentType": 5123, "count": 3, "type": "SCALAR"},
+    {"componentType": 5126, "count": 3, "type": "VEC3"},
+    {"componentType": 5123, "count": 3, "type": "SCALAR"},
+    {"componentType": 5123, "count": 3, "type": "SCALAR"},
+    {"componentType": 5123, "count": 3, "type": "SCALAR"}
+  ],
+  "meshes": [
+    {
+      "name": "ManifoldMesh",
+      "primitives": [{"attributes": {"POSITION": 0}, "indices": 1, "material": 0, "mode": 4}],
+      "extensions": {
+        "EXT_mesh_manifold": {
+          "manifoldPrimitive": {
+            "attributes": {"POSITION": 2},
+            "indices": 3,
+            "material": 1,
+            "mode": 4
+          },
+          "mergeIndices": 4,
+          "mergeValues": 5
+        }
+      }
+    }
+  ]
+})";
+
+TEST(EXTMeshManifoldTest, ExtensionParsed)
+{
+    auto asset = loadInline(kMeshManifoldJSON);
+    ASSERT_NE(asset, nullptr);
+    const auto &mesh = (*asset->meshes)[0];
+    ASSERT_NE(mesh.extMeshManifold, nullptr);
+    EXPECT_EQ(mesh.extMeshManifold->mergeIndices, 4);
+    EXPECT_EQ(mesh.extMeshManifold->mergeValues, 5);
+    EXPECT_EQ(mesh.extMeshManifold->manifoldPrimitive.indices, 3);
+    EXPECT_EQ(mesh.extMeshManifold->manifoldPrimitive.material, 1);
+    ASSERT_EQ(mesh.extMeshManifold->manifoldPrimitive.attributes.count("POSITION"), 1u);
+    EXPECT_EQ(mesh.extMeshManifold->manifoldPrimitive.attributes.at("POSITION"), 2u);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 30.  EXT_lights_ies
+// ─────────────────────────────────────────────────────────────────────────────
+
+static const std::string kLightsIESJSON = R"({
+  "asset": {"version": "2.0"},
+  "extensionsUsed": ["EXT_lights_ies"],
+  "extensions": {
+    "EXT_lights_ies": {
+      "lights": [
+        {"name": "ProfileA", "uri": "profileA.ies", "mimeType": "application/x-ies-lm-63"},
+        {"name": "ProfileB", "bufferView": 0, "mimeType": "application/x-ies-lm-63"}
+      ]
+    }
+  },
+  "bufferViews": [{"buffer": 0, "byteOffset": 0, "byteLength": 64}],
+  "buffers": [{"byteLength": 64, "uri": "data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="}],
+  "nodes": [
+    {
+      "name": "IESNode",
+      "extensions": {
+        "EXT_lights_ies": {
+          "light": 1,
+          "multiplier": 2.5,
+          "color": [0.9, 0.8, 0.7]
+        }
+      }
+    }
+  ]
+})";
+
+TEST(EXTLightsIESTest, RootLightsParsed)
+{
+    auto asset = loadInline(kLightsIESJSON);
+    ASSERT_NE(asset, nullptr);
+    ASSERT_NE(asset->extLightsIes, nullptr);
+    ASSERT_EQ(asset->extLightsIes->size(), 2u);
+    EXPECT_EQ((*asset->extLightsIes)[0].name, "ProfileA");
+    EXPECT_EQ((*asset->extLightsIes)[0].uri, "profileA.ies");
+    EXPECT_EQ((*asset->extLightsIes)[0].mimeType, "application/x-ies-lm-63");
+    EXPECT_EQ((*asset->extLightsIes)[0].bufferView, -1);
+    EXPECT_EQ((*asset->extLightsIes)[1].name, "ProfileB");
+    EXPECT_EQ((*asset->extLightsIes)[1].uri, "");
+    EXPECT_EQ((*asset->extLightsIes)[1].bufferView, 0);
+}
+
+TEST(EXTLightsIESTest, NodeReferenceParsed)
+{
+    auto asset = loadInline(kLightsIESJSON);
+    ASSERT_NE(asset, nullptr);
+    const auto &node = (*asset->nodes)[0];
+    ASSERT_NE(node.extLightsIes, nullptr);
+    EXPECT_EQ(node.extLightsIes->light, 1);
+    EXPECT_NEAR(node.extLightsIes->multiplier, 2.5, 1e-6);
+    EXPECT_NEAR(node.extLightsIes->color.x(), 0.9, 1e-6);
+    EXPECT_NEAR(node.extLightsIes->color.y(), 0.8, 1e-6);
+    EXPECT_NEAR(node.extLightsIes->color.z(), 0.7, 1e-6);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 31.  EXT_lights_image_based
+// ─────────────────────────────────────────────────────────────────────────────
+
+static const std::string kLightsImageBasedJSON = R"({
+  "asset": {"version": "2.0"},
+  "extensionsUsed": ["EXT_lights_image_based"],
+  "extensions": {
+    "EXT_lights_image_based": {
+      "lights": [
+        {
+          "name": "IBL",
+          "rotation": [0.0, 0.1, 0.2, 0.977612],
+          "intensity": 0.8,
+          "irradianceCoefficients": [
+            [1,0,0],[0,1,0],[0,0,1],[1,1,0],[1,0,1],[0,1,1],[1,1,1],[0,0,0],[0.5,0.5,0.5]
+          ],
+          "specularImages": [[0,1,2,3,4,5],[6,7,8,9,10,11]],
+          "specularImageSize": 256
+        }
+      ]
+    }
+  },
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [0],
+      "extensions": {
+        "EXT_lights_image_based": {"light": 0}
+      }
+    }
+  ],
+  "nodes": [{"name": "Node"}]
+})";
+
+TEST(EXTLightsImageBasedTest, RootLightParsed)
+{
+    auto asset = loadInline(kLightsImageBasedJSON);
+    ASSERT_NE(asset, nullptr);
+    ASSERT_NE(asset->extLightsImageBased, nullptr);
+    ASSERT_EQ(asset->extLightsImageBased->size(), 1u);
+    const auto &light = (*asset->extLightsImageBased)[0];
+    EXPECT_EQ(light.name, "IBL");
+    EXPECT_NEAR(light.intensity, 0.8, 1e-6);
+    EXPECT_EQ(light.specularImageSize, 256u);
+    ASSERT_EQ(light.irradianceCoefficients.size(), 9u);
+    EXPECT_NEAR(light.irradianceCoefficients[0][0], 1.0, 1e-6);
+    EXPECT_NEAR(light.irradianceCoefficients[8][2], 0.5, 1e-6);
+    ASSERT_EQ(light.specularImages.size(), 2u);
+    ASSERT_EQ(light.specularImages[0].size(), 6u);
+    EXPECT_EQ(light.specularImages[0][5], 5u);
+}
+
+TEST(EXTLightsImageBasedTest, SceneReferenceParsed)
+{
+    auto asset = loadInline(kLightsImageBasedJSON);
+    ASSERT_NE(asset, nullptr);
+    ASSERT_FALSE(asset->scenes->empty());
+    EXPECT_EQ((*asset->scenes)[0].extLightImageBased, 0);
+}

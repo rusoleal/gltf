@@ -29,11 +29,19 @@
 #include <gltf/animation.hpp>
 #include <gltf/camera.hpp>
 #include <gltf/skin.hpp>
+#include <gltf/file.hpp>
+#include <gltf/shape.hpp>
+#include <gltf/external_asset.hpp>
 #include <gltf/extensions/khr_lights_punctual.hpp>
 #include <gltf/extensions/khr_materials_variants.hpp>
 #include <gltf/extensions/khr_draco_mesh_compression.hpp>
 #include <gltf/extensions/ext_meshopt_compression.hpp>
 #include <gltf/extensions/khr_texture_procedurals.hpp>
+#include <gltf/extensions/ext_lights_ies.hpp>
+#include <gltf/extensions/ext_lights_image_based.hpp>
+#include <gltf/extensions/khr_gaussian_splatting.hpp>
+#include <gltf/extensions/ext_mesh_primitive_edge_visibility.hpp>
+#include <gltf/extensions/ext_mesh_primitive_restart.hpp>
 
 namespace systems::leal::gltf
 {
@@ -46,7 +54,7 @@ namespace systems::leal::gltf
     struct GLTF
     {
 
-        static const std::array<char const *, 24> implementedExtensions;
+        static const std::array<char const *, 35> implementedExtensions;
 
         std::shared_ptr<std::vector<Buffer>> buffers;
         std::shared_ptr<std::vector<BufferView>> bufferViews;
@@ -63,6 +71,17 @@ namespace systems::leal::gltf
         std::shared_ptr<std::vector<Animation>> animations;
         std::shared_ptr<std::vector<Skin>> skins;
 
+        // glTF 2.1 top-level arrays.
+        std::shared_ptr<std::vector<File>> files;
+        std::shared_ptr<std::vector<std::shared_ptr<Shape>>> shapes;
+        std::shared_ptr<std::vector<ExternalAsset>> externalAssets;
+
+        /**
+         * glTF 2.1 asset thumbnail index into the `images` array.
+         * -1 if no thumbnail is declared.
+         */
+        int64_t thumbnail = -1;
+
         // Ratified Khronos extensions.
         std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual;
 
@@ -77,6 +96,12 @@ namespace systems::leal::gltf
 
         /// KHR_texture_procedurals: root-level procedural graphs and definitions. nullptr if not present.
         std::shared_ptr<KHRTextureProcedurals> khrTextureProcedurals = nullptr;
+
+        /// EXT_lights_ies: root-level IES light profiles. nullptr if not present.
+        std::shared_ptr<std::vector<EXTLightIESProfile>> extLightsIes = nullptr;
+
+        /// EXT_lights_image_based: root-level image-based lighting environments. nullptr if not present.
+        std::shared_ptr<std::vector<EXTLightImageBased>> extLightsImageBased = nullptr;
 
         ~GLTF();
 
@@ -143,7 +168,9 @@ namespace systems::leal::gltf
             std::shared_ptr<std::vector<Animation>> animations,
             std::shared_ptr<std::vector<Skin>> skins,
             std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual,
-            std::shared_ptr<KHRTextureProcedurals> khrTextureProcedurals);
+            std::shared_ptr<KHRTextureProcedurals> khrTextureProcedurals,
+            std::shared_ptr<std::vector<EXTLightIESProfile>> extLightsIes,
+            std::shared_ptr<std::vector<EXTLightImageBased>> extLightsImageBased);
     };
 
     std::string getVersion();

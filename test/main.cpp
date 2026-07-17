@@ -402,8 +402,11 @@ TEST_F(AlphaBlendModeTest, Accessor_ComponentTypes_Valid) {
   for (size_t i = 0; i < asset->accessors->size(); i++) {
     const auto &acc = (*asset->accessors)[i];
     int ct = (int)acc.componentType;
-    // Valid glTF component types: 5120-5123, 5125, 5126
-    bool valid = (ct == 5120 || ct == 5121 || ct == 5122 || ct == 5123 || ct == 5125 || ct == 5126);
+    // Valid glTF component types: 5120-5126 (excluding unused 5124 in 2.0)
+    // plus 5124, 5130, 5131, 5134, 5135 added in glTF 2.1
+    bool valid = (ct == 5120 || ct == 5121 || ct == 5122 || ct == 5123 ||
+                  ct == 5124 || ct == 5125 || ct == 5126 ||
+                  ct == 5130 || ct == 5131 || ct == 5134 || ct == 5135);
     EXPECT_TRUE(valid) << "accessor " << i << " has invalid componentType: " << ct;
   }
 }

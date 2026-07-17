@@ -37,17 +37,25 @@ namespace systems::leal::gltf
          */
         int64_t khr_texture_basisu;
 
+        /**
+         * The index of the KTX2 image populated by EXT_texture_astc extension.
+         * Undefined value = -1
+         */
+        int64_t ext_texture_astc;
+
         Texture(
             const std::string &name,
             int64_t sampler,
             int64_t source,
             int64_t ext_texture_webp,
-            int64_t khr_texture_basisu) : GLTFChildOfRoot(name)
+            int64_t khr_texture_basisu,
+            int64_t ext_texture_astc) : GLTFChildOfRoot(name)
         {
             this->sampler = sampler;
             this->source = source;
             this->ext_texture_webp = ext_texture_webp;
             this->khr_texture_basisu = khr_texture_basisu;
+            this->ext_texture_astc = ext_texture_astc;
         }
 
     };

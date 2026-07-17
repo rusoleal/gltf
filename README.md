@@ -1,6 +1,6 @@
-# C++ glTF 2.0 helper library
+# C++ glTF 2.0 / 2.1 helper library
 
-A c++ package that allows loading .gltf and .glb (glTF binary format) files according to the [glTF 2.0 specification.](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html)
+A c++ package that allows loading .gltf and .glb (glTF binary format) files according to the [glTF 2.0](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html) and [glTF 2.1](https://github.com/KhronosGroup/glTF/blob/main/specification/2.1/README.md) specifications.
 
 ## 🚀 Part of the Campello Engine
 
@@ -56,7 +56,9 @@ auto gltf = GLTF::loadGLTF(jsonString, [](const std::string&) {
 
 Both `loadGLTF` and `loadGLB` throw `std::invalid_argument` on malformed or unsupported input. This includes missing required fields (e.g. `asset.version`, `TextureInfo.index`), unsupported required extensions, array size limits exceeded, and invalid cross-references detected at parse time (skin joint indices, animation channel sampler indices, sparse accessor count).
 
-`getRuntimeInfo` also throws `std::invalid_argument` when traversing the scene graph if it encounters out-of-range indices for: scene nodes, node children, node mesh, node light (`KHR_lights_punctual`), primitive material, primitive accessors, accessor buffer views, material textures, KHR_materials_variants material and variant indices, and KHR_xmp_json_ld packet indices (asset, material, mesh, node). It also throws on cycles in the node hierarchy. It returns `nullptr` for an out-of-range scene index.
+`getRuntimeInfo` also throws `std::invalid_argument` when traversing the scene graph if it encounters out-of-range indices for: scene nodes, node children, node mesh, node light (`KHR_lights_punctual`, `EXT_lights_ies`), image-based scene light (`EXT_lights_image_based`), primitive material, primitive accessors, accessor buffer views, material textures, KHR_materials_variants material and variant indices, and KHR_xmp_json_ld packet indices (asset, material, mesh, node). It also throws on cycles in the node hierarchy. It returns `nullptr` for an out-of-range scene index.
+
+At parse time, out-of-range primitive indices inside `EXT_mesh_primitive_restart` groups and out-of-range `EXT_mesh_manifold` `mergeIndices` / `mergeValues` accessor references are also rejected.
 
 Indices that are not traversed by `getRuntimeInfo` (e.g. animation targets, skin references, camera indices) are not validated at runtime — the caller is responsible for bounds-checking those before use.
 
@@ -73,10 +75,12 @@ The callback-based `loadGLTF` automatically handles external resource loading. T
 * Load .gltf format with external buffers/images.
 * Load .gltf format with embedded buffers/images.
 * Load .glb format (glTF binary format).
+* Load .glb GLB v3 64-bit containers (glTF 2.1).
 * Dynamic asset info via GLTF::getRuntimeInfo() method
 * Sparse accessor support (`accessor.sparse`).
 * Morph targets (`primitive.targets[]`).
 * Skeletal skin data (`skin.joints`, `skin.inverseBindMatrices`, `skin.skeleton`).
+* glTF 2.1 parser support — see [glTF 2.1 parser support](#gltf-21-parser-support) below.
 
 ## Known Limitations
 
@@ -84,7 +88,7 @@ The callback-based `loadGLTF` automatically handles external resource loading. T
 * **Morph targets** — `Primitive::targets` is parsed and exposed as a vector of attribute maps (attribute name → accessor index). Computing the final morphed geometry is left to the caller.
 * **Skin matrices** — joint indices and `inverseBindMatrices` are parsed and stored in `Skin`. Computing the final joint transform matrices is left to the caller.
 * **Camera downcasting** — `GLTF::cameras` holds `std::shared_ptr<Camera>`. To access `PerspectiveCamera`-specific fields (`aspectRatio`, `zFar`) use `std::dynamic_pointer_cast<PerspectiveCamera>(gltf->cameras->at(i))`.
-* **Input size limits** — by default the library rejects assets with more than 65 536 elements in any top-level array (buffers, bufferViews, accessors, meshes, nodes, materials) and buffers larger than 2 GB.
+* **Input size limits** — by default the library rejects assets with more than 65 536 elements in any top-level array (buffers, bufferViews, accessors, meshes, nodes, materials). For glTF 2.0 / GLB v2, buffers larger than 2 GB are rejected; for glTF 2.1 / GLB v3, the buffer size limit is raised to 2^63-1 bytes.
 
 ## Extensions
 
@@ -108,6 +112,7 @@ Ratified glTF 2.0 extensions:
 | KHR_materials_variants          | Ok      | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_variants)          |
 | KHR_materials_volume            | Ok      | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_volume)            |
 | KHR_mesh_quantization           | Ok      | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_mesh_quantization)           |
+| KHR_node_visibility             | Ok      | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_node_visibility)             |
 | KHR_texture_basisu              | Ok      | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_basisu)              |
 | KHR_texture_procedurals         | Ok      | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_procedurals)         |
 | KHR_texture_transform           | Ok      | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_transform)           |
@@ -116,6 +121,41 @@ Ratified glTF 2.0 extensions:
 | EXT_meshopt_compression         | Ok      | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_meshopt_compression)          |
 | KHR_meshopt_compression         | Ok      | Same decompression logic as EXT_meshopt_compression (Khronos-ratified name)                                    |
 | EXT_texture_webp                | Ok      | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_texture_webp)                 |
+
+### glTF 2.1 extensions (draft / promoted)
+
+These extensions are parsed at the data-model level. Runtime behaviour (e.g. applying IES light profiles, rendering Gaussian splats, or using manifold geometry) is left to the caller.
+
+|                                      | Status      | Reference                                                                                                           |
+|--------------------------------------|-------------|---------------------------------------------------------------------------------------------------------------------|
+| KHR_node_hoverability                | Ok (draft)  | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_node_hoverability)                |
+| KHR_node_selectability               | Ok (draft)  | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_node_selectability)               |
+| KHR_materials_diffuse_transmission   | Ok (draft)  | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_diffuse_transmission)   |
+| KHR_gaussian_splatting               | Ok (draft)  | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_gaussian_splatting)               |
+| EXT_texture_astc                     | Ok (draft)  | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_texture_astc)                      |
+| EXT_lights_ies                       | Ok (draft)  | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_lights_ies)                        |
+| EXT_lights_image_based               | Ok (draft)  | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_lights_image_based)                |
+| EXT_mesh_manifold                    | Ok (draft)  | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_mesh_manifold)                     |
+| EXT_mesh_primitive_edge_visibility   | Ok (draft)  | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_mesh_primitive_edge_visibility)   |
+| EXT_mesh_primitive_restart           | Ok (draft)  | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_mesh_primitive_restart)           |
+
+## glTF 2.1 parser support
+
+The loader parses the following glTF 2.1 features. These are currently **parser-level** support: the data model is fully exposed, but runtime behaviour (e.g. instantiating external assets, applying bounding volumes, or resolving packaged files) is left to the caller.
+
+* **`asset.version` 2.1** accepted during parse.
+* **Promoted `KHR_node_visibility`** — `node.visible` is now core syntax. The `KHR_node_visibility` extension is still parsed as a fallback on 2.0 assets.
+* **New accessor component types** — `INT` (5124), `HALF_FLOAT` (5130), `DOUBLE` (5131), `UNSIGNED_BYTE_NORMALIZED` (5134), `BYTE_NORMALIZED` (5135).
+* **Non-sequential attributes** — `TEXCOORD_n` / `COLOR_n` attribute sets no longer need to start at `_0` or be contiguous.
+* **Unique IDs** — every child-of-root object may carry a file-scoped `uid`; the parser validates uniqueness and disallows collisions with `name` values.
+* **Unified File References** — top-level `files` array (`File` with `uri`, `bufferView`, `mimeType`, and embedded `data`).
+* **External Assets / Packaging** — top-level `externalAssets` array plus `node.externalAsset` references.
+* **Shapes** — top-level `shapes` array supporting `box`, `sphere`, `capsule`, `cylinder`, and `plane`.
+* **Bounding Volumes** — `node.boundingVolume` referencing a shape index and optional transform matrix.
+* **Thumbnails** — `asset.thumbnail` image index parsed into `GLTF::thumbnail`.
+* **GLB v3** — 64-bit chunk lengths and buffer sizes; GLB v2 remains fully supported.
+
+> **Note:** glTF 2.1 is still stabilising on the Khronos side. The implementation above follows the current public drafts and explainers; the data model may be adjusted as the specification finalises.
 
 ## Dependencies
 

@@ -65,6 +65,32 @@ TEST(ValidationTest, MalformedVersionString)
     EXPECT_THROW(parse(R"({"asset": {"version": "noversion"}})"), std::invalid_argument);
 }
 
+TEST(ValidationTest, ValidVersion20)
+{
+    EXPECT_NO_THROW(parse(R"({"asset": {"version": "2.0"}})"));
+}
+
+TEST(ValidationTest, ValidVersion21)
+{
+    EXPECT_NO_THROW(parse(R"({"asset": {"version": "2.1"}})"));
+}
+
+TEST(ValidationTest, FutureMinorVersion21)
+{
+    // Any 2.x minor version is accepted; forward compatibility with future 2.x specs.
+    EXPECT_NO_THROW(parse(R"({"asset": {"version": "2.99"}})"));
+}
+
+TEST(ValidationTest, Version30Rejected)
+{
+    EXPECT_THROW(parse(R"({"asset": {"version": "3.0"}})"), std::invalid_argument);
+}
+
+TEST(ValidationTest, NegativeMinorVersionRejected)
+{
+    EXPECT_THROW(parse(R"({"asset": {"version": "2.-1"}})"), std::invalid_argument);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. Unsupported required extension
 // ─────────────────────────────────────────────────────────────────────────────
@@ -194,8 +220,8 @@ TEST(ValidationTest, BufferPayloadLengthMismatch)
 
 TEST(ValidationTest, BufferByteLengthExceedsLimit)
 {
-    // 3 GB > GLTF_MAX_BUFFER_BYTE_LENGTH (2 GB)
-    uint64_t tooBig = 3ULL * 1024 * 1024 * 1024;
+    // glTF 2.1 raised the buffer limit to 8 EiB; use one byte more to trip the check.
+    uint64_t tooBig = 0x7FFFFFFFFFFFFFFFULL + 1;
     EXPECT_THROW(parse(
         R"({"asset": {"version": "2.0"}, "buffers": [{"byteLength": )" +
         std::to_string(tooBig) + "}]}"),
@@ -292,6 +318,28 @@ TEST(ValidationTest, AttributeAccessorIndexOutOfRange)
         "accessors": []
     })");
     EXPECT_THROW(asset->getRuntimeInfo(0), std::invalid_argument);
+}
+
+TEST(ValidationTest, MeshPrimitiveRestartGroupIndexOutOfRange)
+{
+    // The restart group references primitive index 2, but the mesh has only two primitives.
+    EXPECT_THROW(parse(R"({
+        "asset": {"version": "2.0"},
+        "extensionsUsed": ["EXT_mesh_primitive_restart"],
+        "meshes": [{
+          "primitives": [
+            {
+              "attributes": {},
+              "extensions": {
+                "EXT_mesh_primitive_restart": {
+                  "primitiveGroups": [{"primitives": [2], "indices": 0}]
+                }
+              }
+            },
+            {"attributes": {}}
+          ]
+        }]
+    })"), std::invalid_argument);
 }
 
 TEST(ValidationTest, AccessorBufferViewIndexOutOfRange)
@@ -521,6 +569,40 @@ TEST(ValidationTest, NodeLightIndexOutOfRange)
     EXPECT_THROW(gltf->getRuntimeInfo(0), std::invalid_argument);
 }
 
+TEST(ValidationTest, NodeIESLightIndexOutOfRange)
+{
+    auto gltf = parse(R"({
+      "asset": {"version": "2.0"},
+      "scene": 0,
+      "scenes": [{"nodes": [0]}],
+      "nodes": [{"extensions": {"EXT_lights_ies": {"light": 5}}}],
+      "extensions": {
+        "EXT_lights_ies": {"lights": [{"name": "ProfileA", "uri": "a.ies"}]}
+      },
+      "extensionsUsed": ["EXT_lights_ies"]
+    })");
+    EXPECT_THROW(gltf->getRuntimeInfo(0), std::invalid_argument);
+}
+
+TEST(ValidationTest, SceneImageBasedLightIndexOutOfRange)
+{
+    auto gltf = parse(R"({
+      "asset": {"version": "2.0"},
+      "scene": 0,
+      "scenes": [{
+        "nodes": [],
+        "extensions": {"EXT_lights_image_based": {"light": 5}}
+      }],
+      "extensions": {
+        "EXT_lights_image_based": {
+          "lights": [{"name": "IBL", "rotation": [0, 0, 0, 1]}]
+        }
+      },
+      "extensionsUsed": ["EXT_lights_image_based"]
+    })");
+    EXPECT_THROW(gltf->getRuntimeInfo(0), std::invalid_argument);
+}
+
 TEST(ValidationTest, MaterialVariantMappingMaterialIndexOutOfRange)
 {
     auto gltf = parse(R"({
@@ -617,4 +699,68 @@ TEST(ValidationTest, OrthographicCameraDowncast)
     EXPECT_NEAR(cam->yMag, 1.5, 1e-6);
     EXPECT_NEAR(cam->zNear, 0.1, 1e-6);
     EXPECT_NEAR(cam->zFar, 100.0, 1e-6);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. glTF 2.1 new array references
+// ─────────────────────────────────────────────────────────────────────────────
+
+TEST(ValidationTest, ThumbnailIndexOutOfRange)
+{
+    EXPECT_THROW(parse(R"({
+        "asset": {"version": "2.1", "thumbnail": 0}
+    })"), std::invalid_argument);
+}
+
+TEST(ValidationTest, ExternalAssetFileIndexOutOfRange)
+{
+    EXPECT_THROW(parse(R"({
+        "asset": {"version": "2.1"},
+        "externalAssets": [{"file": 0}]
+    })"), std::invalid_argument);
+}
+
+TEST(ValidationTest, NodeExternalAssetIndexOutOfRange)
+{
+    EXPECT_THROW(parse(R"({
+        "asset": {"version": "2.1"},
+        "nodes": [{"externalAsset": 0}]
+    })"), std::invalid_argument);
+}
+
+TEST(ValidationTest, BoundingVolumeShapeIndexOutOfRange)
+{
+    EXPECT_THROW(parse(R"({
+        "asset": {"version": "2.1"},
+        "nodes": [{"boundingVolume": {"shape": 0}}]
+    })"), std::invalid_argument);
+}
+
+TEST(ValidationTest, FileBufferViewIndexOutOfRange)
+{
+    EXPECT_THROW(parse(R"({
+        "asset": {"version": "2.1"},
+        "files": [{"mimeType": "model/gltf-binary", "bufferView": 0}]
+    })"), std::invalid_argument);
+}
+
+TEST(ValidationTest, Valid21ReferencesAccepted)
+{
+    auto gltf = parse(R"({
+        "asset": {"version": "2.1", "thumbnail": 0},
+        "images": [{"mimeType": "image/png", "uri": "thumb.png"}],
+        "files": [{"mimeType": "model/gltf-binary", "uri": "sub.glb"}],
+        "externalAssets": [{"name": "sub", "file": 0}],
+        "shapes": [{"type": "box", "box": {"size": [1,1,1]}}],
+        "nodes": [
+            {"externalAsset": 0},
+            {"boundingVolume": {"shape": 0}}
+        ]
+    })");
+    ASSERT_EQ(gltf->thumbnail, 0);
+    ASSERT_EQ(gltf->externalAssets->size(), 1u);
+    ASSERT_EQ(gltf->shapes->size(), 1u);
+    EXPECT_EQ((*gltf->nodes)[0].externalAsset, 0);
+    ASSERT_NE((*gltf->nodes)[1].boundingVolume, nullptr);
+    EXPECT_EQ((*gltf->nodes)[1].boundingVolume->shape, 0);
 }
