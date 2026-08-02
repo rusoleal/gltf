@@ -764,3 +764,209 @@ TEST(ValidationTest, Valid21ReferencesAccepted)
     ASSERT_NE((*gltf->nodes)[1].boundingVolume, nullptr);
     EXPECT_EQ((*gltf->nodes)[1].boundingVolume->shape, 0);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 11. RuntimeInfo image-index bounds checking
+// ─────────────────────────────────────────────────────────────────────────────
+
+static std::string textureRuntimeInfoScene(const std::string &textureDef)
+{
+    return R"({
+  "asset": {"version": "2.0"},
+  "scene": 0,
+  "scenes": [{"nodes": [0]}],
+  "nodes": [{"mesh": 0}],
+  "meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "material": 0}]}],
+  "accessors": [{"componentType": 5126, "count": 1, "type": "VEC3"}],
+  "bufferViews": [{"buffer": 0, "byteLength": 12}],
+  "buffers": [{"uri": "data:application/octet-stream;base64,AAAAAAAAAAAAAAAA", "byteLength": 12}],
+  "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}}}],
+  "textures": [)" + textureDef + R"(]
+})";
+}
+
+TEST(ValidationTest, RuntimeInfoTextureSourceOutOfRange)
+{
+    EXPECT_THROW(
+        parse(textureRuntimeInfoScene(R"({"source": 5})"))->getRuntimeInfo(0),
+        std::invalid_argument);
+}
+
+TEST(ValidationTest, RuntimeInfoWebpSourceOutOfRange)
+{
+    EXPECT_THROW(
+        parse(textureRuntimeInfoScene(R"({
+            "extensions": {"EXT_texture_webp": {"source": 5}}
+        })"))->getRuntimeInfo(0),
+        std::invalid_argument);
+}
+
+TEST(ValidationTest, RuntimeInfoBasisuSourceOutOfRange)
+{
+    EXPECT_THROW(
+        parse(textureRuntimeInfoScene(R"({
+            "extensions": {"KHR_texture_basisu": {"source": 5}}
+        })"))->getRuntimeInfo(0),
+        std::invalid_argument);
+}
+
+TEST(ValidationTest, RuntimeInfoAstcSourceOutOfRange)
+{
+    EXPECT_THROW(
+        parse(textureRuntimeInfoScene(R"({
+            "extensions": {"EXT_texture_astc": {"source": 5}}
+        })"))->getRuntimeInfo(0),
+        std::invalid_argument);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 12. Animation required-field validation
+// ─────────────────────────────────────────────────────────────────────────────
+
+TEST(ValidationTest, AnimationSamplerMissingInput)
+{
+    EXPECT_THROW(parse(R"({
+        "asset": {"version": "2.0"},
+        "animations": [{
+            "samplers": [{"output": 0}],
+            "channels": []
+        }]
+    })"), std::invalid_argument);
+}
+
+TEST(ValidationTest, AnimationSamplerMissingOutput)
+{
+    EXPECT_THROW(parse(R"({
+        "asset": {"version": "2.0"},
+        "animations": [{
+            "samplers": [{"input": 0}],
+            "channels": []
+        }]
+    })"), std::invalid_argument);
+}
+
+TEST(ValidationTest, AnimationChannelMissingSampler)
+{
+    EXPECT_THROW(parse(R"({
+        "asset": {"version": "2.0"},
+        "animations": [{
+            "samplers": [{"input": 0, "output": 1}],
+            "channels": [{"target": {"node": 0, "path": "translation"}}]
+        }]
+    })"), std::invalid_argument);
+}
+
+TEST(ValidationTest, AnimationChannelTargetMissingPath)
+{
+    EXPECT_THROW(parse(R"({
+        "asset": {"version": "2.0"},
+        "animations": [{
+            "samplers": [{"input": 0, "output": 1}],
+            "channels": [{"sampler": 0, "target": {"node": 0}}]
+        }]
+    })"), std::invalid_argument);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 13. Skin required-field validation
+// ─────────────────────────────────────────────────────────────────────────────
+
+TEST(ValidationTest, SkinMissingJoints)
+{
+    EXPECT_THROW(parse(R"({
+        "asset": {"version": "2.0"},
+        "skins": [{"name": "NoJoints"}]
+    })"), std::invalid_argument);
+}
+
+TEST(ValidationTest, SkinEmptyJoints)
+{
+    EXPECT_THROW(parse(R"({
+        "asset": {"version": "2.0"},
+        "skins": [{"name": "EmptyJoints", "joints": []}]
+    })"), std::invalid_argument);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 14. Sparse accessor indices componentType validation
+// ─────────────────────────────────────────────────────────────────────────────
+
+TEST(ValidationTest, SparseAccessorInvalidComponentType)
+{
+    EXPECT_THROW(parse(R"({
+        "asset": {"version": "2.0"},
+        "accessors": [{
+            "componentType": 5126,
+            "count": 3,
+            "type": "SCALAR",
+            "sparse": {
+                "count": 1,
+                "indices": {"bufferView": 0, "componentType": 5126},
+                "values": {"bufferView": 0}
+            }
+        }],
+        "bufferViews": [{"buffer": 0, "byteLength": 12}],
+        "buffers": [{"uri": "data:application/octet-stream;base64,AAAAAAAAAAAAAAAA", "byteLength": 12}]
+    })"), std::invalid_argument);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 15. KHR_lights_punctual numeric constraint validation
+// ─────────────────────────────────────────────────────────────────────────────
+
+TEST(ValidationTest, LightRangeNonPositive)
+{
+    EXPECT_THROW(parse(R"({
+        "asset": {"version": "2.0"},
+        "extensionsUsed": ["KHR_lights_punctual"],
+        "extensions": {
+            "KHR_lights_punctual": {
+                "lights": [{"type": "point", "range": 0}]
+            }
+        }
+    })"), std::invalid_argument);
+}
+
+TEST(ValidationTest, LightSpotInvalidConeAngles)
+{
+    EXPECT_THROW(parse(R"({
+        "asset": {"version": "2.0"},
+        "extensionsUsed": ["KHR_lights_punctual"],
+        "extensions": {
+            "KHR_lights_punctual": {
+                "lights": [{
+                    "type": "spot",
+                    "spot": {"innerConeAngle": -0.1, "outerConeAngle": 0.5}
+                }]
+            }
+        }
+    })"), std::invalid_argument);
+
+    EXPECT_THROW(parse(R"({
+        "asset": {"version": "2.0"},
+        "extensionsUsed": ["KHR_lights_punctual"],
+        "extensions": {
+            "KHR_lights_punctual": {
+                "lights": [{
+                    "type": "spot",
+                    "spot": {"innerConeAngle": 0.5, "outerConeAngle": 0.5}
+                }]
+            }
+        }
+    })"), std::invalid_argument);
+
+    EXPECT_THROW(parse(R"({
+        "asset": {"version": "2.0"},
+        "extensionsUsed": ["KHR_lights_punctual"],
+        "extensions": {
+            "KHR_lights_punctual": {
+                "lights": [{
+                    "type": "spot",
+                    "spot": {"innerConeAngle": 0.0, "outerConeAngle": 2.0}
+                }]
+            }
+        }
+    })"), std::invalid_argument);
+}
+
+

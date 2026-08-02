@@ -8,7 +8,7 @@ FetchContent_Declare(
     extern_meshoptimizer
 
     GIT_REPOSITORY https://github.com/zeux/meshoptimizer
-    GIT_TAG        v0.22
+    GIT_TAG        v1.2
 )
 
 FetchContent_GetProperties(extern_meshoptimizer)

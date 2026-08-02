@@ -135,6 +135,45 @@ TEST_F(KHRLightsPunctualTest, NodeWithoutLightIsMinusOne)
     EXPECT_EQ(plain->light, -1);
 }
 
+// Regression test: nlohmann::json::value("intensity", 1) deduces its return
+// type from the *default literal*, not from GLTF_REAL_NUMBER_TYPE. An
+// integer default of `1` used to make the parser call get<int>() on the
+// JSON number, silently truncating any fractional intensity toward zero
+// (e.g. 3.5 -> 3) before it was ever converted to GLTF_REAL_NUMBER_TYPE.
+// The whole-number intensities above (5.0, 100.0, 200.0) would NOT have
+// caught this, since truncating a whole number is a no-op.
+static const std::string kLightsPunctualFractionalJSON = R"({
+  "asset": {"version": "2.0"},
+  "extensionsUsed": ["KHR_lights_punctual"],
+  "extensions": {
+    "KHR_lights_punctual": {
+      "lights": [
+        {"name": "FractionalLight", "type": "point", "intensity": 3.5},
+        {"name": "DefaultLight",    "type": "point"}
+      ]
+    }
+  }
+})";
+
+class KHRLightsPunctualFractionalTest : public testing::Test {
+protected:
+    std::shared_ptr<GLTF> asset;
+    KHRLightsPunctualFractionalTest() { asset = loadInline(kLightsPunctualFractionalJSON); }
+};
+
+TEST_F(KHRLightsPunctualFractionalTest, IntensityFractionalNotTruncated)
+{
+    ASSERT_NE(asset->khrLightsPunctual, nullptr);
+    ASSERT_EQ(asset->khrLightsPunctual->size(), 2u);
+    EXPECT_NEAR((*asset->khrLightsPunctual)[0].intensity, 3.5, 1e-6);
+}
+
+TEST_F(KHRLightsPunctualFractionalTest, IntensityDefaultIsExactlyOne)
+{
+    ASSERT_NE(asset->khrLightsPunctual, nullptr);
+    EXPECT_NEAR((*asset->khrLightsPunctual)[1].intensity, 1.0, 1e-9);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 2.  EXT_mesh_gpu_instancing
 // ─────────────────────────────────────────────────────────────────────────────

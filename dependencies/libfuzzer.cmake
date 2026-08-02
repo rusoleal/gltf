@@ -33,13 +33,21 @@ endif()
 
 set(_FUZZER_SRC "${compiler_rt_SOURCE_DIR}/lib/fuzzer")
 
-# ── Sources common to all platforms ──────────────────────────────────────────
+# ── Sources (matches compiler-rt 18.1.8 upstream lib/fuzzer/CMakeLists.txt) ──
 set(LIBFUZZER_SOURCES
     ${_FUZZER_SRC}/FuzzerCrossOver.cpp
     ${_FUZZER_SRC}/FuzzerDataFlowTrace.cpp
     ${_FUZZER_SRC}/FuzzerDriver.cpp
+    ${_FUZZER_SRC}/FuzzerExtFunctionsDlsym.cpp
+    ${_FUZZER_SRC}/FuzzerExtFunctionsWeak.cpp
+    ${_FUZZER_SRC}/FuzzerExtFunctionsWindows.cpp
+    ${_FUZZER_SRC}/FuzzerExtraCounters.cpp
+    ${_FUZZER_SRC}/FuzzerExtraCountersDarwin.cpp
+    ${_FUZZER_SRC}/FuzzerExtraCountersWindows.cpp
     ${_FUZZER_SRC}/FuzzerFork.cpp
     ${_FUZZER_SRC}/FuzzerIO.cpp
+    ${_FUZZER_SRC}/FuzzerIOPosix.cpp
+    ${_FUZZER_SRC}/FuzzerIOWindows.cpp
     ${_FUZZER_SRC}/FuzzerLoop.cpp
     ${_FUZZER_SRC}/FuzzerMain.cpp
     ${_FUZZER_SRC}/FuzzerMerge.cpp
@@ -47,33 +55,12 @@ set(LIBFUZZER_SOURCES
     ${_FUZZER_SRC}/FuzzerSHA1.cpp
     ${_FUZZER_SRC}/FuzzerTracePC.cpp
     ${_FUZZER_SRC}/FuzzerUtil.cpp
+    ${_FUZZER_SRC}/FuzzerUtilDarwin.cpp
+    ${_FUZZER_SRC}/FuzzerUtilFuchsia.cpp
+    ${_FUZZER_SRC}/FuzzerUtilLinux.cpp
+    ${_FUZZER_SRC}/FuzzerUtilPosix.cpp
+    ${_FUZZER_SRC}/FuzzerUtilWindows.cpp
 )
-
-# ── Platform-specific sources ─────────────────────────────────────────────────
-if (WIN32)
-    list(APPEND LIBFUZZER_SOURCES
-        ${_FUZZER_SRC}/FuzzerExtFunctionsWindows.cpp
-        ${_FUZZER_SRC}/FuzzerIOWindows.cpp
-        ${_FUZZER_SRC}/FuzzerShmemWindows.cpp
-        ${_FUZZER_SRC}/FuzzerUtilWindows.cpp
-    )
-elseif (APPLE)
-    list(APPEND LIBFUZZER_SOURCES
-        ${_FUZZER_SRC}/FuzzerExtFunctionsDlsym.cpp
-        ${_FUZZER_SRC}/FuzzerIOPosix.cpp
-        ${_FUZZER_SRC}/FuzzerShmemPosix.cpp
-        ${_FUZZER_SRC}/FuzzerUtilDarwin.cpp
-        ${_FUZZER_SRC}/FuzzerUtilPosix.cpp
-    )
-else()  # Linux / other POSIX
-    list(APPEND LIBFUZZER_SOURCES
-        ${_FUZZER_SRC}/FuzzerExtFunctionsWeak.cpp
-        ${_FUZZER_SRC}/FuzzerIOPosix.cpp
-        ${_FUZZER_SRC}/FuzzerShmemPosix.cpp
-        ${_FUZZER_SRC}/FuzzerUtilLinux.cpp
-        ${_FUZZER_SRC}/FuzzerUtilPosix.cpp
-    )
-endif()
 
 add_library(fuzzer_runtime STATIC ${LIBFUZZER_SOURCES})
 

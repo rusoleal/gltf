@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22.1)
 
-project(gltf VERSION 0.4.2)
+project(gltf VERSION 0.5.0)
 
 include(CTest)
 
@@ -104,8 +104,14 @@ install(FILES
 if (GLTF_BUILD_FUZZ)
     # Coverage instrumentation (-fsanitize=fuzzer-no-link) still requires
     # clang. The fuzzer ENGINE runtime is compiled from source (no pre-install).
+    # The flag injects weak references to sanitizer coverage symbols that are
+    # only resolved when the runtime is linked, so we check compilation only.
     include(CheckCXXCompilerFlag)
+    set(_SAVED_TRY_COMPILE_TARGET_TYPE ${CMAKE_TRY_COMPILE_TARGET_TYPE})
+    set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
     check_cxx_compiler_flag("-fsanitize=fuzzer-no-link" COMPILER_SUPPORTS_FUZZER_NO_LINK)
+    set(CMAKE_TRY_COMPILE_TARGET_TYPE ${_SAVED_TRY_COMPILE_TARGET_TYPE})
+    unset(_SAVED_TRY_COMPILE_TARGET_TYPE)
     if (NOT COMPILER_SUPPORTS_FUZZER_NO_LINK)
         message(FATAL_ERROR
             "GLTF_BUILD_FUZZ requires a clang compiler that supports "
@@ -142,6 +148,7 @@ if (GLTF_BUILD_TEST)
 
     add_executable(${PROJECT_NAME}_test
         test/main.cpp
+        test/materials.cpp
         test/extensions.cpp
         test/validation.cpp
         test/gltf21.cpp

@@ -326,9 +326,37 @@ void GLTF::updateRuntimeInfoWithMaterial(std::shared_ptr<RuntimeInfo> runtimeInf
             throw std::invalid_argument("Material references out-of-range texture index " + std::to_string(index));
         }
         auto &texture = (*textures)[index];
+        // A texture's actual image can come from the base "source" field or
+        // from an extension-provided alternative (EXT_texture_webp,
+        // KHR_texture_basisu, EXT_texture_astc). Extension-only textures
+        // commonly omit "source" entirely (it's optional — meant only as a
+        // fallback), so checking just texture.source here silently marks
+        // zero images as used for any asset that relies solely on one of
+        // these extensions, and the renderer never uploads them.
+        auto markImageUsed = [&](int64_t imageIndex, const char *sourceKind) {
+            if (imageIndex < 0 || static_cast<size_t>(imageIndex) >= images->size())
+            {
+                throw std::invalid_argument(
+                    std::string("Texture ") + sourceKind + " references out-of-range image index " +
+                    std::to_string(imageIndex));
+            }
+            runtimeInfo->images[imageIndex] = true;
+        };
         if (texture.source != -1)
         {
-            runtimeInfo->images[texture.source] = true;
+            markImageUsed(texture.source, "source");
+        }
+        if (texture.ext_texture_webp != -1)
+        {
+            markImageUsed(texture.ext_texture_webp, "EXT_texture_webp");
+        }
+        if (texture.khr_texture_basisu != -1)
+        {
+            markImageUsed(texture.khr_texture_basisu, "KHR_texture_basisu");
+        }
+        if (texture.ext_texture_astc != -1)
+        {
+            markImageUsed(texture.ext_texture_astc, "EXT_texture_astc");
         }
     };
 
@@ -1070,10 +1098,15 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
                 uint64_t spCount = spDef.value("count", uint64_t(0));
 
                 auto &idxDef = spDef.at("indices");
+                if (!idxDef.contains("componentType") || !idxDef.at("componentType").is_number())
+                    throw std::invalid_argument("Accessor sparse indices missing required 'componentType' field");
+                uint64_t sparseComponentType = idxDef.at("componentType").get<uint64_t>();
+                if (sparseComponentType != 5121 && sparseComponentType != 5123 && sparseComponentType != 5125)
+                    throw std::invalid_argument("Accessor sparse indices componentType must be 5121, 5123, or 5125");
                 Accessor::SparseIndices spIdx{
                     idxDef.value("bufferView", uint64_t(0)),
                     idxDef.value("byteOffset", uint64_t(0)),
-                    (ComponentType)(uint64_t)idxDef.at("componentType")
+                    (ComponentType)sparseComponentType
                 };
 
                 auto &valDef = spDef.at("values");
@@ -1333,9 +1366,9 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
 
                 auto baseColorTexture = textureInfoFromGLTF(pbrMetallicRoughnessDef["baseColorTexture"]);
 
-                GLTF_REAL_NUMBER_TYPE metallicFactor = pbrMetallicRoughnessDef.value("metallicFactor", 1);
+                GLTF_REAL_NUMBER_TYPE metallicFactor = pbrMetallicRoughnessDef.value("metallicFactor", GLTF_REAL_NUMBER_TYPE(1));
 
-                GLTF_REAL_NUMBER_TYPE roughnessFactor = pbrMetallicRoughnessDef.value("roughnessFactor", 1);
+                GLTF_REAL_NUMBER_TYPE roughnessFactor = pbrMetallicRoughnessDef.value("roughnessFactor", GLTF_REAL_NUMBER_TYPE(1));
 
                 auto metallicRoughnessTexture = textureInfoFromGLTF(pbrMetallicRoughnessDef["metallicRoughnessTexture"]);
 
@@ -1356,7 +1389,7 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
                 normalTexture = std::make_shared<NormalTextureInfo>(
                     normalTextureDef["index"],
                     normalTextureDef.value("texCoord", 0),
-                    normalTextureDef.value("scale", 1));
+                    normalTextureDef.value("scale", GLTF_REAL_NUMBER_TYPE(1)));
                 if (normalTextureDef.contains("extensions"))
                     normalTexture->khrTextureTransform = khrTextureTransformFromGLTF(normalTextureDef["extensions"]["KHR_texture_transform"]);
             }
@@ -1370,7 +1403,7 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
                 occlusionTexture = std::make_shared<OcclusionTextureInfo>(
                     occlusionTextureDef["index"],
                     occlusionTextureDef.value("texCoord", 0),
-                    occlusionTextureDef.value("strength", 1));
+                    occlusionTextureDef.value("strength", GLTF_REAL_NUMBER_TYPE(1)));
                 if (occlusionTextureDef.contains("extensions"))
                     occlusionTexture->khrTextureTransform = khrTextureTransformFromGLTF(occlusionTextureDef["extensions"]["KHR_texture_transform"]);
             }
@@ -1865,6 +1898,8 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
             auto name = skin.value("name", "");
             int64_t inverseBindMatrices = skin.value("inverseBindMatrices", int64_t(-1));
             int64_t skeleton = skin.value("skeleton", int64_t(-1));
+            if (!skin.contains("joints") || !skin.at("joints").is_array() || skin.at("joints").empty())
+                throw std::invalid_argument("Skin[" + std::to_string(a) + "] missing required non-empty 'joints' array");
             auto joints = uintListFromGLTF(skin["joints"]);
             for (uint64_t joint : *joints)
                 if (joint >= nodes->size())
@@ -1891,10 +1926,15 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
             {
                 auto samplersDef = animDef["samplers"];
                 animSamplers.reserve(samplersDef.size());
-                for (auto &samplerDef : samplersDef)
+                for (uint32_t s = 0; s < samplersDef.size(); s++)
                 {
-                    uint64_t input = samplerDef.value("input", 0);
-                    uint64_t output = samplerDef.value("output", 0);
+                    auto &samplerDef = samplersDef[s];
+                    if (!samplerDef.contains("input") || !samplerDef.at("input").is_number())
+                        throw std::invalid_argument("Animation[" + std::to_string(a) + "] sampler[" + std::to_string(s) + "] missing required 'input' field");
+                    if (!samplerDef.contains("output") || !samplerDef.at("output").is_number())
+                        throw std::invalid_argument("Animation[" + std::to_string(a) + "] sampler[" + std::to_string(s) + "] missing required 'output' field");
+                    uint64_t input = samplerDef.at("input").get<uint64_t>();
+                    uint64_t output = samplerDef.at("output").get<uint64_t>();
                     std::string interpStr = samplerDef.value("interpolation", "LINEAR");
                     AnimationInterpolation interp = AnimationInterpolation::aiLinear;
                     if (interpStr == "STEP")
@@ -1911,25 +1951,29 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
             {
                 auto channelsDef = animDef["channels"];
                 animChannels.reserve(channelsDef.size());
-                for (auto &channelDef : channelsDef)
+                for (uint32_t c = 0; c < channelsDef.size(); c++)
                 {
-                    uint64_t samplerIdx = channelDef.value("sampler", 0);
+                    auto &channelDef = channelsDef[c];
+                    if (!channelDef.contains("sampler") || !channelDef.at("sampler").is_number())
+                        throw std::invalid_argument("Animation[" + std::to_string(a) + "] channel[" + std::to_string(c) + "] missing required 'sampler' field");
+                    uint64_t samplerIdx = channelDef.at("sampler").get<uint64_t>();
                     AnimationChannelTarget target;
-                    if (channelDef.contains("target"))
+                    if (!channelDef.contains("target") || !channelDef.at("target").is_object())
+                        throw std::invalid_argument("Animation[" + std::to_string(a) + "] channel[" + std::to_string(c) + "] missing required 'target' object");
+                    auto &targetDef = channelDef["target"];
+                    target.node = targetDef.value("node", int64_t(-1));
+                    if (!targetDef.contains("path") || !targetDef.at("path").is_string())
+                        throw std::invalid_argument("Animation[" + std::to_string(a) + "] channel[" + std::to_string(c) + "] target missing required 'path' field");
+                    target.path = targetDef.at("path").get<std::string>();
+                    // KHR_animation_pointer
+                    if (target.path == "pointer" &&
+                        targetDef.contains("extensions") &&
+                        targetDef["extensions"].is_object() &&
+                        targetDef["extensions"].contains("KHR_animation_pointer"))
                     {
-                        auto &targetDef = channelDef["target"];
-                        target.node = targetDef.value("node", int64_t(-1));
-                        target.path = targetDef.value("path", "");
-                        // KHR_animation_pointer
-                        if (target.path == "pointer" &&
-                            targetDef.contains("extensions") &&
-                            targetDef["extensions"].is_object() &&
-                            targetDef["extensions"].contains("KHR_animation_pointer"))
-                        {
-                            auto &ptrDef = targetDef["extensions"]["KHR_animation_pointer"];
-                            if (ptrDef.contains("pointer"))
-                                target.khrAnimationPointer = std::make_shared<KHRAnimationPointer>(ptrDef["pointer"].get<std::string>());
-                        }
+                        auto &ptrDef = targetDef["extensions"]["KHR_animation_pointer"];
+                        if (ptrDef.contains("pointer"))
+                            target.khrAnimationPointer = std::make_shared<KHRAnimationPointer>(ptrDef["pointer"].get<std::string>());
                     }
                     if (samplerIdx >= animSamplers.size())
                         throw std::invalid_argument("Animation channel sampler index out of range");
@@ -1968,14 +2012,22 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
             }
 
             auto color = vec3FromGLTF(light["color"], systems::leal::vector_math::Vector3<GLTF_REAL_NUMBER_TYPE>(1, 1, 1));
-            GLTF_REAL_NUMBER_TYPE intensity = light.value("intensity", 1);
+            GLTF_REAL_NUMBER_TYPE intensity = light.value("intensity", GLTF_REAL_NUMBER_TYPE(1));
             auto range = light.value("range", std::numeric_limits<GLTF_REAL_NUMBER_TYPE>::max());
+            if (light.contains("range") && range <= 0)
+                throw std::invalid_argument("KHR_lights_punctual: light[" + std::to_string(a) + "] 'range' must be greater than 0");
             // Cone angles are nested inside the "spot" sub-object per spec.
             GLTF_REAL_NUMBER_TYPE innerConeAngle = 0;
             GLTF_REAL_NUMBER_TYPE outerConeAngle = M_PI_4;
             if (light.contains("spot") && light["spot"].is_object()) {
                 innerConeAngle = light["spot"].value("innerConeAngle", 0.0);
                 outerConeAngle = light["spot"].value("outerConeAngle", (double)M_PI_4);
+                if (innerConeAngle < 0)
+                    throw std::invalid_argument("KHR_lights_punctual: light[" + std::to_string(a) + "] 'innerConeAngle' must be greater than or equal to 0");
+                if (outerConeAngle <= innerConeAngle)
+                    throw std::invalid_argument("KHR_lights_punctual: light[" + std::to_string(a) + "] 'outerConeAngle' must be greater than 'innerConeAngle'");
+                if (outerConeAngle > M_PI_2)
+                    throw std::invalid_argument("KHR_lights_punctual: light[" + std::to_string(a) + "] 'outerConeAngle' must be less than or equal to PI/2");
             }
 
             khrLightsPunctual->emplace_back(

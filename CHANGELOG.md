@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-02
+
 ### Added
 - glTF 2.1 parser support:
   - Accepts `asset.version` 2.1.
@@ -30,10 +32,16 @@
   - `EXT_mesh_primitive_restart` — parsed on primitive.
 - Cross-reference validation for the new extensions: IES light indices, image-based scene light indices, restart-group primitive indices, and manifold merge accessor indices.
 - Unit tests for all of the above extensions in `test/extensions.cpp` and validation tests in `test/validation.cpp`.
+- Fuzz build now works out of the box on macOS with a Homebrew LLVM clang; `build-fuzz` ignored.
 
 ### Changed
 - `GLTF_MAX_BUFFER_BYTE_LENGTH` raised to `0x7FFFFFFFFFFFFFFFULL` to accommodate GLB v3 64-bit buffers.
 - Updated the input-size-limit validation test for the new 64-bit buffer limit.
+- Upgraded `meshoptimizer` dependency from v0.22 to v1.2 for faster `EXT_meshopt_compression`/`KHR_meshopt_compression` decompression and upstream bug fixes. Decode API is backward compatible, so no loader code changes were required.
+
+### Fixed
+- `GLTF_BUILD_FUZZ` compiler check no longer fails on clang versions that support `-fsanitize=fuzzer-no-link`; the check now verifies compilation only, because the coverage symbols are resolved by the separately-built libFuzzer runtime.
+- `dependencies/libfuzzer.cmake` source list updated to match compiler-rt 18.1.8 upstream (removed obsolete `FuzzerShmemPosix.cpp` / `FuzzerShmemWindows.cpp`, added missing extra-counters and platform-utility sources).
 
 ## [0.4.2] - 2026-04-28
 
