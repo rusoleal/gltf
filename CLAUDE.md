@@ -98,9 +98,9 @@ To publish a new version:
    git tag -a v0.5.0 -m "Release v0.5.0"
    git push origin v0.5.0
    ```
-5. Create the GitHub release with `gh`, using **only the version string as the title** to match previous releases (e.g. `v0.5.0`, not `gltf v0.5.0`):
+5. Write compact release notes. GitHub release bodies should be a short summary (one or two lines per high-level change). Keep the full, detailed changelog in `CHANGELOG.md`; do **not** copy every sub-bullet into the release body.
+6. Create the GitHub release with `gh`, using **only the version string as the title** to match previous releases (e.g. `v0.5.0`, not `gltf v0.5.0`):
    ```bash
-   # Extract the X.Y.Z section from CHANGELOG.md into a file, then:
    gh release create v0.5.0 --title "v0.5.0" --notes-file /tmp/v0.5.0_release_notes.md
    ```
    Do **not** use `--generate-notes` or a descriptive title, because the existing release list uses bare version strings like `v0.4.2`, `v0.4.1`, etc.
