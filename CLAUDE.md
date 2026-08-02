@@ -85,3 +85,22 @@ Extensions live in `inc/gltf/extensions/`: `KHR_lights_punctual` and `EXT_mesh_g
 - **nlohmann/json** — embedded in `src/json.hpp`
 - **cpp-base64** — embedded in `src/base64.cpp`
 - **GoogleTest** — fetched at configure time when `GLTF_BUILD_TEST=ON`
+
+## Releasing
+
+To publish a new version:
+
+1. Bump `project(gltf VERSION ...)` in `CMakeLists.txt`.
+2. Add a new `## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md` (move items out of `[Unreleased]`).
+3. Commit and push the changes.
+4. Create and push an annotated tag matching the version exactly:
+   ```bash
+   git tag -a v0.5.0 -m "Release v0.5.0"
+   git push origin v0.5.0
+   ```
+5. Create the GitHub release with `gh`, using **only the version string as the title** to match previous releases (e.g. `v0.5.0`, not `gltf v0.5.0`):
+   ```bash
+   # Extract the X.Y.Z section from CHANGELOG.md into a file, then:
+   gh release create v0.5.0 --title "v0.5.0" --notes-file /tmp/v0.5.0_release_notes.md
+   ```
+   Do **not** use `--generate-notes` or a descriptive title, because the existing release list uses bare version strings like `v0.4.2`, `v0.4.1`, etc.
