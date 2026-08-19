@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-08-19
+
+### Changed
+- Upgraded `vector_math` dependency from v0.3.5 to v0.6.0 (SIMD/AVX performance improvements and a `Matrix4::lookAt()` right-axis fix). No API usage in this library is affected, since `lookAt()` is not used internally.
+
+### Fixed
+- Removed the stale `AlphaBlendModeTestEmbedded.gltf` download from `launch_test.sh` and `CLAUDE.md`; the corresponding test uses an inline embedded glTF fixture and never reads that file. The download also pointed at a `glTF-Embedded` asset variant that KhronosGroup has since removed upstream.
+
 ## [0.5.0] - 2026-08-02
 
 ### Added

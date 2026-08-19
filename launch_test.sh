@@ -5,7 +5,6 @@ BASE=https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/refs/head
 
 # Core test assets
 curl "$BASE/AlphaBlendModeTest/glTF/AlphaBlendModeTest.gltf"                      > build/AlphaBlendModeTest.gltf
-curl "$BASE/AlphaBlendModeTest/glTF-Embedded/AlphaBlendModeTest.gltf"             > build/AlphaBlendModeTestEmbedded.gltf
 curl "$BASE/AlphaBlendModeTest/glTF-Binary/AlphaBlendModeTest.glb"                > build/AlphaBlendModeTest.glb
 
 # glTF 2.1 local fixtures (until official Khronos sample assets are published)
