@@ -19,6 +19,16 @@ if(NOT extern_draco_POPULATED)
     #set(DRACO_TESTS   OFF CACHE BOOL "" FORCE)
     #set(DRACO_JS_GLUE OFF CACHE BOOL "" FORCE)
 
+    # Emscripten: build draco's C++ libraries (not its JavaScript decoder
+    # modules), and give its environment check the SDK path the toolchain
+    # file already knows, so a plain `emcmake cmake` works.
+    if(EMSCRIPTEN)
+        set(DRACO_JS_GLUE OFF CACHE BOOL "" FORCE)
+        if(NOT DEFINED ENV{EMSCRIPTEN} AND EMSCRIPTEN_ROOT_PATH)
+            set(ENV{EMSCRIPTEN} "${EMSCRIPTEN_ROOT_PATH}")
+        endif()
+    endif()
+
     message(STATUS "Fetching draco...")
     FetchContent_Populate(extern_draco)
     include_directories(${extern_draco_SOURCE_DIR}/src)

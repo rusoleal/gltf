@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- **Emscripten builds.** draco built its JavaScript decoder modules instead of its C++ libraries under Emscripten (so `draco_static` didn't exist), and its configure step required an `EMSCRIPTEN` environment variable. `dependencies/draco.cmake` now turns `DRACO_JS_GLUE` off and sets the variable from the toolchain's `EMSCRIPTEN_ROOT_PATH`, so a plain `emcmake cmake` works. Found building campello_renderer for WebGPU.
+
 ## [0.5.1] - 2026-08-19
 
 ### Changed
