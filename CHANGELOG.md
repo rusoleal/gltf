@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-10
+
+### Changed
+- vector_math v0.6.1 (Emscripten builds).
+
 ### Fixed
 - **Emscripten builds.** draco built its JavaScript decoder modules instead of its C++ libraries under Emscripten (so `draco_static` didn't exist), and its configure step required an `EMSCRIPTEN` environment variable. `dependencies/draco.cmake` now turns `DRACO_JS_GLUE` off and sets the variable from the toolchain's `EMSCRIPTEN_ROOT_PATH`, so a plain `emcmake cmake` works. Found building campello_renderer for WebGPU.
 

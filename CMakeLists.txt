@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22.1)
 
-project(gltf VERSION 0.5.1)
+project(gltf VERSION 0.5.2)
 
 include(CTest)
 
