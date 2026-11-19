@@ -2144,6 +2144,38 @@ TEST_F(KHRTextureProceduralsTest, MaterialTextureInfoExtension)
     EXPECT_EQ(mat->pbrMetallicRoughness->baseColorTexture->khrTextureProcedurals->output, "out");
 }
 
+// Graphs and nodes without "inputs" (a graph with no parameters, a node
+// with only defaults) or "outputs": the keys are optional, and reading a
+// missing one asserted in debug builds (undefined behaviour in release).
+TEST(KHRTextureProceduralsOptionalKeys, GraphsWithoutInputsParse)
+{
+    auto asset = loadInline(R"({
+      "asset": {"version": "2.0"},
+      "extensionsUsed": ["KHR_texture_procedurals"],
+      "extensions": {"KHR_texture_procedurals": {
+        "procedurals": [{
+          "name": "plain", "nodetype": "nodegraph", "type": "color3",
+          "nodes": [{"name": "board", "nodetype": "checkerboard", "type": "color3"}],
+          "outputs": {"out": {"nodetype": "output", "type": "color3", "node": 0}}
+        }, {
+          "name": "empty", "nodetype": "nodegraph", "type": "float"
+        }],
+        "procedural_definitions": [{"name": "ND_x", "nodetype": "nodedef", "node": "x"}]
+      }}
+    })");
+    ASSERT_NE(asset, nullptr);
+    ASSERT_NE(asset->khrTextureProcedurals, nullptr);
+    ASSERT_EQ(asset->khrTextureProcedurals->procedurals.size(), 2u);
+    const auto &plain = asset->khrTextureProcedurals->procedurals[0];
+    EXPECT_TRUE(plain.inputs.empty());
+    ASSERT_EQ(plain.nodes.size(), 1u);
+    EXPECT_TRUE(plain.nodes[0].inputs.empty());
+    EXPECT_TRUE(plain.nodes[0].outputs.empty());
+    ASSERT_EQ(plain.outputs.size(), 1u);
+    EXPECT_TRUE(asset->khrTextureProcedurals->procedurals[1].nodes.empty());
+    ASSERT_EQ(asset->khrTextureProcedurals->proceduralDefinitions.size(), 1u);
+}
+
 TEST_F(KHRTextureProceduralsTest, FallbackTextureIndexPreserved)
 {
     const Material *mat = findMaterial(asset, "ProceduralMat");
