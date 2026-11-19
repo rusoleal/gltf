@@ -152,6 +152,17 @@ std::shared_ptr<KHRTextureTransform> khrTextureTransformFromGLTF(const nlohmann:
 // KHR_texture_procedurals helpers
 // ---------------------------------------------------------------------------
 
+// An optional member of a const JSON object: null when absent. (A const
+// json's operator[] asserts on a missing key, and is undefined in release.)
+static const nlohmann::json &member(const nlohmann::json &data, const char *key)
+{
+    static const nlohmann::json null;
+    if (!data.is_object())
+        return null;
+    const auto it = data.find(key);
+    return it == data.end() ? null : *it;
+}
+
 static std::shared_ptr<ProceduralValue> proceduralValueFromGLTF(const nlohmann::json &data, const std::string &type)
 {
     auto pv = std::make_shared<ProceduralValue>(type);
@@ -260,7 +271,7 @@ static ProceduralNode proceduralNodeFromGLTF(const nlohmann::json &data)
     node.nodetype = data.value("nodetype", "");
     node.type = data.value("type", "");
 
-    auto inputsDef = data["inputs"];
+    const auto &inputsDef = member(data, "inputs");
     if (inputsDef.is_object())
     {
         for (auto &element : inputsDef.items())
@@ -269,7 +280,7 @@ static ProceduralNode proceduralNodeFromGLTF(const nlohmann::json &data)
         }
     }
 
-    auto outputsDef = data["outputs"];
+    const auto &outputsDef = member(data, "outputs");
     if (outputsDef.is_object())
     {
         for (auto &element : outputsDef.items())
@@ -314,7 +325,7 @@ ProceduralGraph proceduralGraphFromGLTF(const nlohmann::json &data)
     if (data.contains("ypos") && data.at("ypos").is_number())
         graph.ypos = data.at("ypos").get<GLTF_REAL_NUMBER_TYPE>();
 
-    auto inputsDef = data["inputs"];
+    const auto &inputsDef = member(data, "inputs");
     if (inputsDef.is_object())
     {
         for (auto &element : inputsDef.items())
@@ -323,7 +334,7 @@ ProceduralGraph proceduralGraphFromGLTF(const nlohmann::json &data)
         }
     }
 
-    auto outputsDef = data["outputs"];
+    const auto &outputsDef = member(data, "outputs");
     if (outputsDef.is_object())
     {
         for (auto &element : outputsDef.items())
@@ -332,7 +343,7 @@ ProceduralGraph proceduralGraphFromGLTF(const nlohmann::json &data)
         }
     }
 
-    auto nodesDef = data["nodes"];
+    const auto &nodesDef = member(data, "nodes");
     if (nodesDef.is_array())
     {
         graph.nodes.reserve(nodesDef.size());
@@ -358,7 +369,7 @@ ProceduralNodeDef proceduralNodeDefFromGLTF(const nlohmann::json &data)
     def.version = data.value("version", "");
     def.defaultVersion = data.value("defaultVersion", false);
 
-    auto inputsDef = data["inputs"];
+    const auto &inputsDef = member(data, "inputs");
     if (inputsDef.is_object())
     {
         for (auto &element : inputsDef.items())
@@ -367,7 +378,7 @@ ProceduralNodeDef proceduralNodeDefFromGLTF(const nlohmann::json &data)
         }
     }
 
-    auto outputsDef = data["outputs"];
+    const auto &outputsDef = member(data, "outputs");
     if (outputsDef.is_object())
     {
         for (auto &element : outputsDef.items())

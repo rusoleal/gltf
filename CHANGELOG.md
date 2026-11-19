@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-11-19
+
+### Fixed
+- **KHR_texture_procedurals graphs or nodes without `inputs`, `outputs` or `nodes`** (a graph with no parameters, a node left at its defaults). Those keys are optional, but they were read with a const JSON object's `operator[]`, which asserts on a missing key in debug builds and is undefined behaviour in release. Loading such a glTF aborted. They're read through a helper that gives null when absent. New test `KHRTextureProceduralsOptionalKeys.GraphsWithoutInputsParse` (aborts without the fix). Found baking procedural materials in campello_renderer.
+
 ## [0.5.2] - 2026-11-10
 
 ### Changed
