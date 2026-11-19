@@ -122,7 +122,7 @@ static void validateUids(
 }
 
 
-const std::array<char const *, 35> GLTF::implementedExtensions = {
+const std::array<char const *, 36> GLTF::implementedExtensions = {
     "KHR_lights_punctual",
     "EXT_texture_webp",
     "EXT_mesh_gpu_instancing",
@@ -147,6 +147,7 @@ const std::array<char const *, 35> GLTF::implementedExtensions = {
     "EXT_meshopt_compression",
     "KHR_meshopt_compression",
     "KHR_texture_procedurals",
+    "KHR_interactivity",
     "KHR_node_visibility",
     "KHR_node_hoverability",
     "KHR_node_selectability",
@@ -2159,6 +2160,13 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
     toReturn->externalAssets = externalAssets;
     toReturn->thumbnail = assetThumbnail;
 
+    // KHR_interactivity
+    if (gltfDef.contains("extensions") && gltfDef["extensions"].is_object() &&
+        gltfDef["extensions"].contains("KHR_interactivity"))
+    {
+        toReturn->khrInteractivity = khrInteractivityFromGLTF(gltfDef["extensions"]["KHR_interactivity"]);
+    }
+
     // Validate glTF 2.1 cross-references for new top-level arrays.
     if (assetThumbnail >= 0 && static_cast<uint64_t>(assetThumbnail) >= images->size())
     {
@@ -2402,7 +2410,8 @@ std::string GLTF::toString()
     ss << "externalAssets: " << (externalAssets ? std::to_string(externalAssets->size()) : "0") << ", ";
     ss << "thumbnail: " << thumbnail << ", ";
     ss << "khrLightsPunctual: " << khrLightsPunctual->size() << ", ";
-    ss << "khrTextureProcedurals: " << (khrTextureProcedurals ? std::to_string(khrTextureProcedurals->procedurals.size()) : "0") << "}";
+    ss << "khrTextureProcedurals: " << (khrTextureProcedurals ? std::to_string(khrTextureProcedurals->procedurals.size()) : "0") << ", ";
+    ss << "khrInteractivity: " << (khrInteractivity ? std::to_string(khrInteractivity->graphs.size()) : "0") << "}";
     return ss.str();
 }
 

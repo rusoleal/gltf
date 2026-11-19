@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-19
+
+### Added
+- **KHR_interactivity** (ratified). Behavior graphs are parsed into `GLTF::khrInteractivity` (`nullptr` when absent): the default `graph` index and each graph's `types`, `variables`, custom `events`, operation `declarations` and `nodes`, with their value sockets (inline literal or link to an earlier node's output), flow sockets (target socket defaults to `"in"`) and `configuration`. Literals keep their JSON kind (bool, integer, number, string), so `pointer` strings and exact integers survive. Validation follows the spec's Validation section without failing the glTF load: a broken structural assert sets `khrInteractivity->valid = false` (with `error`), and a "reject the graph" rule sets that graph's `valid = false`. Checked: JSON indices, non-empty arrays/objects, type signatures (known, case-sensitive, no duplicates), inline values against their type (length, bool/int32/number, JSON Pointer refs), duplicate event ids and declarations, value links to earlier nodes and flows to later ones, and every node against its operation: a built-in table of all operations of the spec (input/output value sockets and type overloads, e.g. `math/add` on floatN/floatNxN/int) plus the configuration-driven ones (`math/select`, `math/switch`, `variable/*`, `pointer/*` with JSON Pointer template parsing, `event/receive`/`send`, `debug/log` templates); extension operations use their declared sockets. Unknown operations, missing or mistyped inputs, and links to outputs that do not exist or have another type reject the graph. Running the graph is left to the caller. All 187 invalid cases of the Khronos interactivity test set are rejected (each for the rule it targets) and all 197 valid assets load. New header `gltf/extensions/khr_interactivity.hpp`, tests `KHRInteractivityTest.*`, and `KHRInteractivityConformance.*` over KhronosGroup/glTF-Test-Assets-Interactivity (cloned by `launch_test.sh` into `build/interactivity-assets`, skipped when absent).
+
 ## [0.5.3] - 2026-11-19
 
 ### Fixed

@@ -28,6 +28,7 @@ std::shared_ptr<KHRTextureTransform> khrTextureTransformFromGLTF(const nlohmann:
 std::shared_ptr<KHRTextureProceduralsTextureInfo> khrTextureProceduralsTextureInfoFromGLTF(const nlohmann::json &data);
 ProceduralGraph proceduralGraphFromGLTF(const nlohmann::json &data);
 ProceduralNodeDef proceduralNodeDefFromGLTF(const nlohmann::json &data);
+std::shared_ptr<KHRInteractivity> khrInteractivityFromGLTF(const nlohmann::json &data);
 std::shared_ptr<TextureInfo> textureInfoFromGLTF(const nlohmann::json &data);
 AlphaMode alphaModeFromGLTF(const nlohmann::json &data);
 FilterMode filterModeFromGLTF(nlohmann::json &node);

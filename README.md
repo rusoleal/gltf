@@ -98,6 +98,7 @@ Ratified glTF 2.0 extensions:
 |---------------------------------|---------|----------------------------------------------------------------------------------------------------------------|
 | KHR_animation_pointer           | Ok      | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_animation_pointer)           |
 | KHR_draco_mesh_compression      | Ok      | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_draco_mesh_compression)      |
+| KHR_interactivity               | Ok      | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_interactivity)               |
 | KHR_lights_punctual             | Ok      | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_lights_punctual)             |
 | KHR_materials_anisotropy        | Ok      | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_anisotropy)        |
 | KHR_materials_clearcoat         | Ok      | [Spec.](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_materials_clearcoat)         |

@@ -60,6 +60,11 @@ curl "$BASE/Avocado/glTF-Draco/Avocado.bin"                                     
 curl "$BASE/BrainStem/glTF-Meshopt/BrainStem.gltf"                                > build/BrainStem.gltf
 curl "$BASE/BrainStem/glTF-Meshopt/BrainStem.bin"                                 > build/BrainStem.bin
 
+# KHR_interactivity conformance assets (valid models/tests and the invalid-graph set)
+if [ ! -d build/interactivity-assets ]; then
+    git clone --depth 1 https://github.com/KhronosGroup/glTF-Test-Assets-Interactivity.git build/interactivity-assets
+fi
+
 cd build
 ./gltf_test
 cd ..

@@ -2623,3 +2623,362 @@ TEST(EXTLightsImageBasedTest, SceneReferenceParsed)
     ASSERT_FALSE(asset->scenes->empty());
     EXPECT_EQ((*asset->scenes)[0].extLightImageBased, 0);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KHR_interactivity
+// ─────────────────────────────────────────────────────────────────────────────
+
+// variable/get -> math/add(a + var) -> pointer/set(/nodes/0/translation), triggered by onStart,
+// then a vendor op. Value links point to earlier nodes, flows to later ones.
+static const std::string kInteractivityJSON = R"({
+  "asset": {"version": "2.0"},
+  "extensionsUsed": ["KHR_interactivity"],
+  "extensions": {
+    "KHR_interactivity": {
+      "graph": 0,
+      "graphs": [{
+        "name": "main",
+        "types": [
+          {"signature": "float3"},
+          {"signature": "int"},
+          {"signature": "bool"},
+          {"signature": "custom"}
+        ],
+        "variables": [
+          {"name": "offset", "type": 0, "value": [1.0, 2.5, -3]},
+          {"name": "count", "type": 1, "value": [4.0]}
+        ],
+        "events": [
+          {"name": "Hit", "id": "hit", "values": {"strong": {"type": 2, "value": [true]}}}
+        ],
+        "declarations": [
+          {"op": "variable/get"},
+          {"op": "math/add"},
+          {"op": "event/onStart"},
+          {"op": "pointer/set"},
+          {"op": "ACME/custom", "extension": "ACME_ops",
+           "inputValueSockets": {"x": {"type": 1}},
+           "outputValueSockets": {"y": {"type": 1}}}
+        ],
+        "nodes": [
+          {"declaration": 0, "configuration": {"variable": {"value": [0]}}},
+          {"declaration": 1,
+           "values": {"a": {"type": 0, "value": [0, 0, 1]}, "b": {"node": 0}}},
+          {"declaration": 2, "flows": {"out": {"node": 3}}},
+          {"declaration": 3,
+           "configuration": {"pointer": {"value": ["/nodes/0/translation"]}, "type": {"value": [0]}},
+           "values": {"value": {"node": 1, "socket": "value"}},
+           "flows": {"out": {"node": 4, "socket": "custom"}}},
+          {"declaration": 4, "values": {"x": {"type": 1, "value": [7]}}}
+        ]
+      }]
+    }
+  },
+  "nodes": [{"name": "Target"}],
+  "scenes": [{"nodes": [0]}],
+  "scene": 0
+})";
+
+TEST(KHRInteractivityTest, GraphStructureParsed)
+{
+    auto asset = loadInline(kInteractivityJSON);
+    ASSERT_NE(asset, nullptr);
+    ASSERT_NE(asset->khrInteractivity, nullptr);
+    EXPECT_TRUE(asset->khrInteractivity->valid) << asset->khrInteractivity->error;
+    EXPECT_EQ(asset->khrInteractivity->graph, 0);
+    ASSERT_EQ(asset->khrInteractivity->graphs.size(), 1u);
+    const auto &g = asset->khrInteractivity->graphs[0];
+    EXPECT_TRUE(g.valid) << g.error;
+    EXPECT_EQ(g.name, "main");
+    EXPECT_EQ(g.types.size(), 4u);
+    EXPECT_EQ(g.variables.size(), 2u);
+    EXPECT_EQ(g.events.size(), 1u);
+    EXPECT_EQ(g.declarations.size(), 5u);
+    EXPECT_EQ(g.nodes.size(), 5u);
+}
+
+TEST(KHRInteractivityTest, TypesParsed)
+{
+    auto asset = loadInline(kInteractivityJSON);
+    const auto &types = asset->khrInteractivity->graphs[0].types;
+    EXPECT_EQ(types[0].signature, InteractivityTypeSignature::Float3);
+    EXPECT_EQ(types[0].signatureName, "float3");
+    EXPECT_EQ(types[1].signature, InteractivityTypeSignature::Int);
+    EXPECT_EQ(types[2].signature, InteractivityTypeSignature::Bool);
+    EXPECT_EQ(types[3].signature, InteractivityTypeSignature::Custom);
+}
+
+TEST(KHRInteractivityTest, VariablesParsed)
+{
+    auto asset = loadInline(kInteractivityJSON);
+    const auto &vars = asset->khrInteractivity->graphs[0].variables;
+    EXPECT_EQ(vars[0].name, "offset");
+    EXPECT_EQ(vars[0].type, 0);
+    ASSERT_EQ(vars[0].value.size(), 3u);
+    EXPECT_EQ(vars[0].value[0].kind, InteractivityLiteral::Kind::Number);
+    EXPECT_NEAR(vars[0].value[1].numberValue, 2.5, 1e-9);
+    EXPECT_EQ(vars[0].value[2].kind, InteractivityLiteral::Kind::Integer);
+    EXPECT_EQ(vars[0].value[2].intValue, -3);
+    EXPECT_NEAR(vars[0].value[2].numberValue, -3.0, 1e-9);
+    // 4.0 is a valid int literal and is exposed as an integer.
+    ASSERT_EQ(vars[1].value.size(), 1u);
+    EXPECT_EQ(vars[1].value[0].kind, InteractivityLiteral::Kind::Integer);
+    EXPECT_EQ(vars[1].value[0].intValue, 4);
+}
+
+TEST(KHRInteractivityTest, EventsParsed)
+{
+    auto asset = loadInline(kInteractivityJSON);
+    const auto &ev = asset->khrInteractivity->graphs[0].events[0];
+    EXPECT_EQ(ev.name, "Hit");
+    EXPECT_EQ(ev.id, "hit");
+    ASSERT_EQ(ev.values.count("strong"), 1u);
+    const auto &strong = ev.values.at("strong");
+    EXPECT_EQ(strong.type, 2);
+    ASSERT_EQ(strong.value.size(), 1u);
+    EXPECT_EQ(strong.value[0].kind, InteractivityLiteral::Kind::Bool);
+    EXPECT_TRUE(strong.value[0].boolValue);
+}
+
+TEST(KHRInteractivityTest, DeclarationsParsed)
+{
+    auto asset = loadInline(kInteractivityJSON);
+    const auto &decls = asset->khrInteractivity->graphs[0].declarations;
+    EXPECT_EQ(decls[0].op, "variable/get");
+    EXPECT_TRUE(decls[0].extension.empty());
+    EXPECT_TRUE(decls[0].inputValueSockets.empty());
+    EXPECT_EQ(decls[4].op, "ACME/custom");
+    EXPECT_EQ(decls[4].extension, "ACME_ops");
+    ASSERT_EQ(decls[4].inputValueSockets.count("x"), 1u);
+    EXPECT_EQ(decls[4].inputValueSockets.at("x").type, 1);
+    ASSERT_EQ(decls[4].outputValueSockets.count("y"), 1u);
+}
+
+TEST(KHRInteractivityTest, NodesParsed)
+{
+    auto asset = loadInline(kInteractivityJSON);
+    const auto &nodes = asset->khrInteractivity->graphs[0].nodes;
+
+    // Flow with default target socket, and with an explicit one.
+    ASSERT_EQ(nodes[2].flows.count("out"), 1u);
+    EXPECT_EQ(nodes[2].flows.at("out").node, 3);
+    EXPECT_EQ(nodes[2].flows.at("out").socket, "in");
+    EXPECT_EQ(nodes[3].flows.at("out").socket, "custom");
+
+    // Configuration values.
+    EXPECT_EQ(nodes[3].declaration, 3);
+    ASSERT_EQ(nodes[3].configuration.count("pointer"), 1u);
+    const auto &pointer = nodes[3].configuration.at("pointer");
+    ASSERT_EQ(pointer.size(), 1u);
+    EXPECT_EQ(pointer[0].kind, InteractivityLiteral::Kind::String);
+    EXPECT_EQ(pointer[0].stringValue, "/nodes/0/translation");
+    EXPECT_EQ(nodes[3].configuration.at("type")[0].intValue, 0);
+
+    // Linked value socket with an explicit source socket.
+    const auto &linked = nodes[3].values.at("value");
+    EXPECT_TRUE(linked.isLinked());
+    EXPECT_EQ(linked.node, 1);
+    EXPECT_EQ(linked.socket, "value");
+    EXPECT_EQ(linked.type, -1);
+    EXPECT_TRUE(linked.value.empty());
+
+    // Linked without explicit socket, and inline literal.
+    EXPECT_EQ(nodes[1].values.at("b").node, 0);
+    EXPECT_TRUE(nodes[1].values.at("b").socket.empty());
+    const auto &literal = nodes[1].values.at("a");
+    EXPECT_FALSE(literal.isLinked());
+    EXPECT_EQ(literal.type, 0);
+    ASSERT_EQ(literal.value.size(), 3u);
+    EXPECT_EQ(literal.value[2].intValue, 1);
+}
+
+TEST(KHRInteractivityTest, AbsentExtensionIsNull)
+{
+    auto asset = loadInline(R"({"asset": {"version": "2.0"}})");
+    ASSERT_NE(asset, nullptr);
+    EXPECT_EQ(asset->khrInteractivity, nullptr);
+}
+
+TEST(KHRInteractivityTest, MinimalGraphParsed)
+{
+    auto asset = loadInline(R"({
+      "asset": {"version": "2.0"},
+      "extensions": {"KHR_interactivity": {"graphs": [{}]}}
+    })");
+    ASSERT_NE(asset->khrInteractivity, nullptr);
+    EXPECT_TRUE(asset->khrInteractivity->valid);
+    EXPECT_EQ(asset->khrInteractivity->graph, 0);
+    ASSERT_EQ(asset->khrInteractivity->graphs.size(), 1u);
+    EXPECT_TRUE(asset->khrInteractivity->graphs[0].nodes.empty());
+}
+
+static std::string interactivityAsset(const std::string &ext)
+{
+    return R"({"asset": {"version": "2.0"}, "extensions": {"KHR_interactivity": )" + ext + "}}";
+}
+
+// Two graphs: graph 0 is valid and the default; graph 1 carries the case under test.
+static std::shared_ptr<GLTF> loadSecondGraph(const std::string &graph)
+{
+    return loadInline(interactivityAsset(R"({"graphs": [{}, )" + graph + "]}"));
+}
+
+TEST(KHRInteractivityTest, InvalidExtensionRejected)
+{
+    const char *invalid[] = {
+        R"({})",                                                                   // graphs missing
+        R"({"graphs": []})",                                                       // graphs empty
+        R"({"graphs": {}})",                                                       // graphs not an array
+        R"({"graph": 1, "graphs": [{}]})",                                         // default graph out of range
+        R"({"graph": -1, "graphs": [{}]})",                                        // default graph negative
+        R"({"graph": 0.5, "graphs": [{}]})",                                       // default graph fractional
+        R"({"graphs": [{"types": []}]})",                                          // empty array
+        R"({"graphs": [{"types": [{}]}]})",                                        // signature missing
+        R"({"graphs": [{"variables": [{"type": 0}]}]})",                           // variables without types
+        R"({"graphs": [{"types": [{"signature": "int"}], "variables": [{"type": 0, "value": []}]}]})",
+        R"({"graphs": [{"types": [{"signature": "int"}], "events": [{"values": {"event": {"type": 0}}}]}]})",
+        R"({"graphs": [{"declarations": [{}]}]})",                                 // op missing
+        R"({"graphs": [{"nodes": [{"declaration": 0}]}]})",                        // nodes without declarations
+        R"({"graphs": [{"types": [{"signature": "int"}], "declarations": [{"op": "math/E"}], "nodes": [{"declaration": 0}, {"declaration": 0, "values": {"a": {"node": 0, "value": [1]}}}]}]})",
+        R"({"graphs": [{"declarations": [{"op": "math/E"}], "nodes": [{"declaration": 0, "values": {"a": {}}}]}]})",
+        R"({"graphs": [{"declarations": [{"op": "math/E"}], "nodes": [{"declaration": 0, "flows": {}}]}]})",
+        R"({"graphs": [{"declarations": [{"op": "math/E"}], "nodes": [{"declaration": 0, "configuration": {"c": {}}}]}]})",
+        // default graph rejected
+        R"({"graphs": [{"types": [{"signature": "float5"}]}]})",
+    };
+    for (const char *ext : invalid)
+    {
+        std::shared_ptr<GLTF> asset;
+        ASSERT_NO_THROW(asset = loadInline(interactivityAsset(ext))) << ext;
+        ASSERT_NE(asset->khrInteractivity, nullptr) << ext;
+        EXPECT_FALSE(asset->khrInteractivity->valid) << ext;
+        EXPECT_FALSE(asset->khrInteractivity->error.empty()) << ext;
+        EXPECT_TRUE(asset->khrInteractivity->graphs.empty()) << ext;
+    }
+}
+
+TEST(KHRInteractivityTest, InvalidGraphRejected)
+{
+    const char *invalid[] = {
+        R"({"types": [{"signature": "float5"}]})",                                 // unknown signature
+        R"({"types": [{"signature": "Float"}]})",                                  // case-sensitive
+        R"({"types": [{"signature": "int"}, {"signature": "int"}]})",              // duplicate signature
+        R"({"types": [{"signature": "int"}], "variables": [{"type": 1}]})",        // type out of range
+        R"({"types": [{"signature": "float3"}], "variables": [{"type": 0, "value": [1, 2]}]})",
+        R"({"types": [{"signature": "bool"}], "variables": [{"type": 0, "value": [1]}]})",
+        R"({"types": [{"signature": "int"}], "variables": [{"type": 0, "value": [1.5]}]})",
+        R"({"types": [{"signature": "int"}], "variables": [{"type": 0, "value": [2147483648]}]})",
+        R"({"types": [{"signature": "float"}], "variables": [{"type": 0, "value": ["1"]}]})",
+        R"({"types": [{"signature": "ref"}], "variables": [{"type": 0, "value": ["nodes/0"]}]})",
+        R"({"types": [{"signature": "ref"}], "variables": [{"type": 0, "value": ["/nodes/~2"]}]})",
+        R"({"events": [{"id": "a"}, {"id": "a"}]})",                               // duplicate event id
+        R"({"types": [{"signature": "int"}], "declarations": [{"op": "math/add", "inputValueSockets": {"a": {"type": 0}}}]})",
+        R"({"declarations": [{"op": "math/add"}, {"op": "math/add"}]})",            // equal declarations
+        R"({"declarations": [{"op": "math/E"}], "nodes": [{"declaration": 1}]})", // declaration out of range
+        R"({"declarations": [{"op": "math/E"}, {"op": "math/abs"}], "nodes": [{"declaration": 1, "values": {"a": {"node": 1}}}, {"declaration": 0}]})",
+        R"({"declarations": [{"op": "flow/sequence"}], "nodes": [{"declaration": 0}, {"declaration": 0, "flows": {"0": {"node": 0}}}]})",
+        R"({"declarations": [{"op": "flow/sequence"}], "nodes": [{"declaration": 0, "flows": {"0": {"node": 1}}}]})",
+        // extension op: declared input missing, wrong type, undeclared output read
+        R"({"types": [{"signature": "int"}, {"signature": "float"}], "declarations": [{"op": "x/op", "extension": "X", "inputValueSockets": {"a": {"type": 0}}}], "nodes": [{"declaration": 0, "values": {"b": {"type": 0}}}]})",
+        R"({"types": [{"signature": "int"}, {"signature": "float"}], "declarations": [{"op": "x/op", "extension": "X", "inputValueSockets": {"a": {"type": 0}}}], "nodes": [{"declaration": 0, "values": {"a": {"type": 1}}}]})",
+        R"({"types": [{"signature": "int"}], "declarations": [{"op": "x/op", "extension": "X", "outputValueSockets": {"r": {"type": 0}}}, {"op": "math/abs"}], "nodes": [{"declaration": 0}, {"declaration": 1, "values": {"a": {"node": 0}}}]})",
+    };
+    for (const char *graph : invalid)
+    {
+        std::shared_ptr<GLTF> asset;
+        ASSERT_NO_THROW(asset = loadSecondGraph(graph)) << graph;
+        ASSERT_NE(asset->khrInteractivity, nullptr) << graph;
+        ASSERT_TRUE(asset->khrInteractivity->valid) << graph << ": " << asset->khrInteractivity->error;
+        ASSERT_EQ(asset->khrInteractivity->graphs.size(), 2u) << graph;
+        EXPECT_TRUE(asset->khrInteractivity->graphs[0].valid) << graph;
+        EXPECT_FALSE(asset->khrInteractivity->graphs[1].valid) << graph;
+        EXPECT_FALSE(asset->khrInteractivity->graphs[1].error.empty()) << graph;
+    }
+}
+
+TEST(KHRInteractivityTest, JsonIndexAcceptsIntegralFloats)
+{
+    auto asset = loadInline(interactivityAsset(
+        R"({"graph": 1.0, "graphs": [{}, {"types": [{"signature": "int"}], "variables": [{"type": 0.0, "value": [2e0]}]}]})"));
+    ASSERT_TRUE(asset->khrInteractivity->valid) << asset->khrInteractivity->error;
+    EXPECT_EQ(asset->khrInteractivity->graph, 1);
+    EXPECT_EQ(asset->khrInteractivity->graphs[1].variables[0].type, 0);
+    EXPECT_EQ(asset->khrInteractivity->graphs[1].variables[0].value[0].intValue, 2);
+}
+
+// Operation catalog: graphs that follow each operation's sockets, overloads and configuration.
+TEST(KHRInteractivityTest, OperationsAccepted)
+{
+    const char *valid[] = {
+        // overloads: float3 and int math/add; output type flows through links (extract3 needs float3)
+        R"({"types": [{"signature": "float3"}, {"signature": "int"}], "declarations": [{"op": "math/add"}, {"op": "math/extract3"}],
+            "nodes": [{"declaration": 0, "values": {"a": {"type": 0, "value": [1, 2, 3]}, "b": {"type": 0}}},
+                      {"declaration": 0, "values": {"a": {"type": 1, "value": [1]}, "b": {"type": 1, "value": [2]}}},
+                      {"declaration": 1, "values": {"a": {"node": 0, "type": 0}}}]})",
+        // math/eq on bool, outputs with non-default socket names
+        R"({"types": [{"signature": "bool"}, {"signature": "float"}], "declarations": [{"op": "math/E"}, {"op": "math/isNaN"}, {"op": "math/eq"}],
+            "nodes": [{"declaration": 0}, {"declaration": 1, "values": {"a": {"node": 0}}},
+                      {"declaration": 2, "values": {"a": {"node": 1}, "b": {"type": 0, "value": [false]}}}]})",
+        // variable/set with the variables' types, variable/interpolate with slerp on float4
+        R"({"types": [{"signature": "int"}, {"signature": "float4"}, {"signature": "float"}, {"signature": "float2"}],
+            "variables": [{"type": 0}, {"type": 1}],
+            "declarations": [{"op": "variable/set"}, {"op": "variable/interpolate"}],
+            "nodes": [{"declaration": 0, "configuration": {"variables": {"value": [0, 1]}},
+                       "values": {"0": {"type": 0, "value": [3]}, "1": {"type": 1, "value": [0, 0, 0, 1]}}},
+                      {"declaration": 1, "configuration": {"variable": {"value": [1]}, "useSlerp": {"value": [true]}},
+                       "values": {"value": {"type": 1}, "duration": {"type": 2, "value": [1]}, "p1": {"type": 3}, "p2": {"type": 3}}}]})",
+        // pointer/get template parameters (int and ref), its outputs, and escaped literal brackets
+        R"({"types": [{"signature": "int"}, {"signature": "ref"}, {"signature": "float3"}],
+            "declarations": [{"op": "pointer/get"}, {"op": "math/length"}],
+            "nodes": [{"declaration": 0, "configuration": {"pointer": {"value": ["/nodes/[i]/extras/{{x}}/{n}"]}, "type": {"value": [2]}},
+                       "values": {"i": {"type": 0, "value": [0]}, "n": {"type": 1}}},
+                      {"declaration": 1, "values": {"a": {"node": 0}}}]})",
+        // math/switch cases, debug/log template parameters, custom event send/receive
+        R"({"types": [{"signature": "int"}, {"signature": "float"}], "events": [{"values": {"v": {"type": 1}}}],
+            "declarations": [{"op": "math/switch"}, {"op": "debug/log"}, {"op": "event/send"}, {"op": "event/receive"}, {"op": "math/abs"}],
+            "nodes": [{"declaration": 0, "configuration": {"cases": {"value": [1, 2.0]}},
+                       "values": {"selection": {"type": 0}, "default": {"type": 1}, "1": {"type": 1}, "2": {"type": 1}}},
+                      {"declaration": 1, "configuration": {"message": {"value": ["x={x} {{literal}}"]}}, "values": {"x": {"node": 0}}},
+                      {"declaration": 2, "configuration": {"event": {"value": [0]}}, "values": {"v": {"node": 0}}},
+                      {"declaration": 3, "configuration": {"event": {"value": [0]}}},
+                      {"declaration": 4, "values": {"a": {"node": 3, "socket": "v"}}}]})",
+    };
+    for (const char *graph : valid)
+    {
+        auto asset = loadSecondGraph(graph);
+        ASSERT_TRUE(asset->khrInteractivity->valid) << graph << ": " << asset->khrInteractivity->error;
+        EXPECT_TRUE(asset->khrInteractivity->graphs[1].valid) << graph << ": " << asset->khrInteractivity->graphs[1].error;
+    }
+}
+
+TEST(KHRInteractivityTest, OperationRulesRejected)
+{
+    const char *invalid[] = {
+        R"({"declarations": [{"op": "math/addd"}]})",                              // unknown op
+        R"({"declarations": [{"op": "Math/Add"}]})",                               // case-sensitive
+        // missing input, mixed overload types, wrong concrete type
+        R"({"types": [{"signature": "float"}], "declarations": [{"op": "math/add"}], "nodes": [{"declaration": 0, "values": {"a": {"type": 0}}}]})",
+        R"({"types": [{"signature": "float"}, {"signature": "int"}], "declarations": [{"op": "math/add"}], "nodes": [{"declaration": 0, "values": {"a": {"type": 0}, "b": {"type": 1}}}]})",
+        R"({"types": [{"signature": "int"}], "declarations": [{"op": "math/sin"}], "nodes": [{"declaration": 0, "values": {"a": {"type": 0}}}]})",
+        // reading an output the source does not have; link type differs from the output's
+        R"({"types": [{"signature": "float"}], "declarations": [{"op": "math/E"}, {"op": "math/abs"}], "nodes": [{"declaration": 0}, {"declaration": 1, "values": {"a": {"node": 0, "socket": "result"}}}]})",
+        R"({"types": [{"signature": "int"}], "declarations": [{"op": "math/E"}, {"op": "math/abs"}], "nodes": [{"declaration": 0}, {"declaration": 1, "values": {"a": {"node": 0, "type": 0}}}]})",
+        // configuration without a default
+        R"({"types": [{"signature": "int"}], "variables": [{"type": 0}], "declarations": [{"op": "variable/get"}], "nodes": [{"declaration": 0}]})",
+        R"({"types": [{"signature": "int"}], "variables": [{"type": 0}], "declarations": [{"op": "variable/get"}], "nodes": [{"declaration": 0, "configuration": {"variable": {"value": [1]}}}]})",
+        R"({"types": [{"signature": "int"}], "variables": [{"type": 0}], "declarations": [{"op": "variable/set"}], "nodes": [{"declaration": 0, "configuration": {"variables": {"value": [0]}}}]})",
+        R"({"types": [{"signature": "float3"}], "declarations": [{"op": "pointer/get"}], "nodes": [{"declaration": 0, "configuration": {"pointer": {"value": ["/nodes/[i]/weights/[i]"]}, "type": {"value": [0]}}}]})",
+        R"({"types": [{"signature": "float3"}], "declarations": [{"op": "pointer/get"}], "nodes": [{"declaration": 0, "configuration": {"pointer": {"value": ["/nodes/[i]/scale"]}, "type": {"value": [0]}}}]})",
+        R"({"types": [{"signature": "float3"}], "declarations": [{"op": "pointer/set"}], "nodes": [{"declaration": 0, "configuration": {"pointer": {"value": ["/nodes/[value]/scale"]}, "type": {"value": [0]}}}]})",
+        R"({"types": [{"signature": "int"}], "declarations": [{"op": "pointer/interpolate"}], "nodes": [{"declaration": 0, "configuration": {"pointer": {"value": ["/x"]}, "type": {"value": [0]}}}]})",
+        R"({"declarations": [{"op": "event/receive"}], "nodes": [{"declaration": 0, "configuration": {"event": {"value": [0]}}}]})",
+        R"({"types": [{"signature": "int"}, {"signature": "float"}], "declarations": [{"op": "math/switch"}], "nodes": [{"declaration": 0, "configuration": {"cases": {"value": [1]}}, "values": {"selection": {"type": 0}, "default": {"type": 1}, "1": {"type": 0}}}]})",
+        R"({"declarations": [{"op": "debug/log"}], "nodes": [{"declaration": 0, "configuration": {"message": {"value": ["{a}"]}}}]})",
+    };
+    for (const char *graph : invalid)
+    {
+        auto asset = loadSecondGraph(graph);
+        ASSERT_TRUE(asset->khrInteractivity->valid) << graph << ": " << asset->khrInteractivity->error;
+        EXPECT_FALSE(asset->khrInteractivity->graphs[1].valid) << graph;
+    }
+}

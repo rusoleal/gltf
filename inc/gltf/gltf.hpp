@@ -37,6 +37,7 @@
 #include <gltf/extensions/khr_draco_mesh_compression.hpp>
 #include <gltf/extensions/ext_meshopt_compression.hpp>
 #include <gltf/extensions/khr_texture_procedurals.hpp>
+#include <gltf/extensions/khr_interactivity.hpp>
 #include <gltf/extensions/ext_lights_ies.hpp>
 #include <gltf/extensions/ext_lights_image_based.hpp>
 #include <gltf/extensions/khr_gaussian_splatting.hpp>
@@ -54,7 +55,7 @@ namespace systems::leal::gltf
     struct GLTF
     {
 
-        static const std::array<char const *, 35> implementedExtensions;
+        static const std::array<char const *, 36> implementedExtensions;
 
         std::shared_ptr<std::vector<Buffer>> buffers;
         std::shared_ptr<std::vector<BufferView>> bufferViews;
@@ -96,6 +97,9 @@ namespace systems::leal::gltf
 
         /// KHR_texture_procedurals: root-level procedural graphs and definitions. nullptr if not present.
         std::shared_ptr<KHRTextureProcedurals> khrTextureProcedurals = nullptr;
+
+        /// KHR_interactivity: root-level behavior graphs. nullptr if not present.
+        std::shared_ptr<KHRInteractivity> khrInteractivity = nullptr;
 
         /// EXT_lights_ies: root-level IES light profiles. nullptr if not present.
         std::shared_ptr<std::vector<EXTLightIESProfile>> extLightsIes = nullptr;
