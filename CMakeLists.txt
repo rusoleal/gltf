@@ -11,6 +11,15 @@ set(CMAKE_CXX_STANDARD 20)
 option(GLTF_BUILD_TEST  "Enable building tests"            OFF)
 option(GLTF_BUILD_FUZZ  "Enable building libFuzzer targets" OFF)
 
+# WebAssembly SIMD (-msimd128), on by default: every browser with WebGPU has
+# it. Compiles this directory with it (the library and the third-party code it
+# builds); the target passes it on to its consumers below.
+option(GLTF_WASM_SIMD "WebAssembly builds: use SIMD (-msimd128)" ON)
+if(EMSCRIPTEN AND GLTF_WASM_SIMD)
+    add_compile_options(-msimd128)
+    add_link_options(-msimd128)
+endif()
+
 # Floating-point precision used throughout the public API.
 # Must match between the library build and any consumer that includes the headers.
 set(GLTF_REAL_NUMBER_TYPE "double" CACHE STRING "Floating-point type used in the public API (float or double)")
@@ -48,6 +57,12 @@ target_include_directories(gltf PUBLIC
     "$<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 )
+
+# Consumers compile and link with SIMD too (the link tells wasm-opt to accept it).
+if(EMSCRIPTEN AND GLTF_WASM_SIMD)
+    target_compile_options(gltf INTERFACE -msimd128)
+    target_link_options(gltf INTERFACE -msimd128)
+endif()
 
 # ── Install ────────────────────────────────────────────────────────────────
 
