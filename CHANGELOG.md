@@ -4,6 +4,7 @@
 
 ### Changed
 - **WebAssembly builds use SIMD** (`-msimd128`), on by default: every browser with WebGPU supports it. The option `GLTF_WASM_SIMD` turns it off. It applies to the library and the Draco and meshoptimizer decoders it builds (meshoptimizer's decoder has a SIMD path) and is passed on to consumers (compile and link, so wasm-opt accepts the SIMD instructions).
+- vector_math v0.7.0 (WebAssembly SIMD).
 
 ## [0.6.0] - 2026-11-19
 
