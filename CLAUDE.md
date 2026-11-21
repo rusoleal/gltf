@@ -77,7 +77,7 @@ The `GLTF` root object owns shared_ptr vectors of all glTF components:
 - **Animation** — keyframe data with linear/step/cubic interpolation
 - **Skin / Camera** — skeletal and camera data
 
-Extensions live in `inc/gltf/extensions/`: `KHR_lights_punctual` and `EXT_mesh_gpu_instancing`.
+Extensions live in `inc/gltf/extensions/`: `KHR_lights_punctual` and `EXT_mesh_gpu_instancing`. `khr_interactivity.hpp` parses and validates KHR_interactivity graphs; `khr_interactivity_runtime.hpp` (`src/khr_interactivity_runtime.cpp`) executes them through an `InteractivityHost` the application implements.
 
 ### Dependencies
 - **vector_math** (fetched via CMake FetchContent) — Vector2/3/4, Quaternion, Matrix types
