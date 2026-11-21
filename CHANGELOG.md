@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- **WebAssembly: errors in a file aborted instead of being caught.** The library reports a file's errors by throwing, and KHR_interactivity validation throws and catches internally to reject a graph, but Emscripten builds have exception catching off by default: the throw aborted the thread. A model with an invalid interactivity graph (Needle's older Calculator.glb, exported against a draft with an empty `events` array) didn't open in campello_web_viewer, which waited forever. The option `GLTF_WASM_EXCEPTIONS` (on) compiles the library with catching (Emscripten's JavaScript-based exceptions, `-fexceptions`, which work with ASYNCIFY) and links its consumers with it; code that catches the library's exceptions is compiled with `-fexceptions` too.
+
 ## [0.7.0] - 2026-11-20
 
 ### Changed

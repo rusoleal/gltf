@@ -64,6 +64,21 @@ if(EMSCRIPTEN AND GLTF_WASM_SIMD)
     target_link_options(gltf INTERFACE -msimd128)
 endif()
 
+# The library reports a file's errors by throwing (std::invalid_argument, the
+# JSON parser's errors), and KHR_interactivity validation throws and catches
+# internally to reject a graph. Emscripten builds have exception catching off
+# by default, so those throws aborted the thread instead (a model with an
+# invalid interactivity graph didn't open at all). GLTF_WASM_EXCEPTIONS (on)
+# compiles the library with catching and links its consumers with it. It uses
+# Emscripten's JavaScript-based exceptions (-fexceptions), which work with
+# ASYNCIFY, unlike -fwasm-exceptions. Consumers that catch the library's
+# exceptions compile that code with -fexceptions too.
+option(GLTF_WASM_EXCEPTIONS "WebAssembly builds: catch exceptions (-fexceptions)" ON)
+if(EMSCRIPTEN AND GLTF_WASM_EXCEPTIONS)
+    target_compile_options(gltf PRIVATE -fexceptions)
+    target_link_options(gltf INTERFACE -fexceptions)
+endif()
+
 # ── Install ────────────────────────────────────────────────────────────────
 
 install(TARGETS gltf
