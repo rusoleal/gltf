@@ -605,3 +605,47 @@ TEST(InteractivityRuntime, GhostPlaysItsAnimationsOnHover)
     EXPECT_EQ(host.applied.back().first, 1);
     EXPECT_TRUE(runtime.errors().empty());
 }
+
+TEST(InteractivityRuntime, PointerGetAnswersTheAssetStructure)
+{
+    // The glTF Asset Object Model's read-only structure, from the asset:
+    // array sizes (".length") and references (parent, children, mesh). A
+    // reference that doesn't exist (a root's parent, a node without a mesh)
+    // isn't valid. Each value is copied to a host property on start.
+    auto get = [](const char *pointer, int type) {
+        return std::string(R"({"declaration": 2, "configuration": {"pointer": {"value": [")") + pointer +
+               R"("]}, "type": {"value": [)" + std::to_string(type) + "]}}}";
+    };
+    auto set = [](const char *name, int type, int node, const char *socket) {
+        return std::string(R"({"declaration": 3, "configuration": {"pointer": {"value": ["/extras/)") + name +
+               R"("]}, "type": {"value": [)" + std::to_string(type) + R"(]}}, "values": {"value": {"node": )" +
+               std::to_string(node) + R"(, "socket": ")" + socket + R"("}}})";
+    };
+    auto asset = withGraph(std::string("{") + kTypes + R"(,
+        "declarations": [{"op": "event/onStart"}, {"op": "flow/sequence"}, {"op": "pointer/get"}, {"op": "pointer/set"}],
+        "nodes": [
+          {"declaration": 0, "flows": {"out": {"node": 1}}},
+          {"declaration": 1, "flows": {"a": {"node": 8}, "b": {"node": 9}, "c": {"node": 10}, "d": {"node": 11},
+                                       "e": {"node": 12}, "f": {"node": 13}}},
+          )" + get("/nodes.length", 1) + "," + get("/nodes/0/children.length", 1) + "," +
+                               get("/nodes/1/parent", 5) + "," + get("/nodes/0/parent", 5) + "," +
+                               get("/nodes/0/mesh", 5) + "," + get("/nodes/0/children/0", 5) + "," +
+                               set("count", 1, 2, "value") + "," + set("children", 1, 3, "value") + "," +
+                               set("parent", 5, 4, "value") + "," + set("rootParent", 0, 5, "isValid") + "," +
+                               set("mesh", 0, 6, "isValid") + "," + set("child", 5, 7, "value") + "]}");
+    ASSERT_NE(asset, nullptr);
+    ASSERT_TRUE(asset->khrInteractivity && asset->khrInteractivity->valid) << asset->khrInteractivity->error;
+    FakeHost host;
+    InteractivityRuntime runtime(*asset, host);
+    ASSERT_TRUE(runtime.valid());
+    runtime.start();
+    EXPECT_TRUE(runtime.errors().empty());
+    ASSERT_TRUE(host.properties.count("/extras/count"));
+    EXPECT_EQ(host.properties["/extras/count"].i, 3);
+    EXPECT_EQ(host.properties["/extras/children"].i, 1);
+    EXPECT_EQ(host.properties["/extras/parent"].ref.collection, "nodes");
+    EXPECT_EQ(host.properties["/extras/parent"].ref.index, 0);
+    EXPECT_FALSE(host.properties["/extras/rootParent"].b);
+    EXPECT_FALSE(host.properties["/extras/mesh"].b);
+    EXPECT_EQ(host.properties["/extras/child"].ref.index, 1);
+}

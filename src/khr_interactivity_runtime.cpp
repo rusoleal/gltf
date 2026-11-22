@@ -1713,6 +1713,140 @@ struct InteractivityRuntime::Impl
         }
     }
 
+    // The glTF Asset Object Model's read-only structure pointers, answered from
+    // the asset: array sizes ("/nodes.length", "/nodes/2/children.length"; 0
+    // for an array that isn't defined) and references ("/nodes/2/mesh",
+    // "/nodes/2/parent", "/scenes/0/nodes/[1]", "/scene"). `handled` says
+    // whether the pointer is one of them; the result, whether it resolved (a
+    // node without a mesh, a root's parent and indices out of range don't).
+    bool structurePointer(const std::string &pointer, Sig sig, Value &v, bool &handled) const
+    {
+        std::vector<std::string> seg;
+        for (size_t at = 1; at <= pointer.size();)
+        {
+            const size_t next = std::min(pointer.find('/', at), pointer.size());
+            seg.push_back(pointer.substr(at, next - at));
+            at = next + 1;
+        }
+        if (pointer.empty() || pointer[0] != '/' || seg.empty()) return false;
+        auto index = [](const std::string &s) -> int64_t {
+            if (s.empty() || s.size() > 10 || s.find_first_not_of("0123456789") != std::string::npos) return -1;
+            return std::stoll(s);
+        };
+        auto length = [&](size_t n) {
+            handled = true;
+            if (sig != Sig::Int) return false;
+            v = Value::ofInt(static_cast<int32_t>(n));
+            return true;
+        };
+        auto ref = [&](const char *collection, int64_t i) {
+            handled = true;
+            if (sig != Sig::Ref || i < 0 || i >= collectionSize(collection)) return false;
+            v = Value::ofRef(Ref{Ref::Kind::Object, collection, i, 0});
+            return true;
+        };
+        const std::string &last = seg.back();
+        const bool isLength = last.size() > 7 && last.compare(last.size() - 7, 7, ".length") == 0;
+        const std::string array = isLength ? last.substr(0, last.size() - 7) : last;
+
+        // "/<collection>.length", "/extensions/KHR_lights_punctual/lights.length", "/scene".
+        if (seg.size() == 1)
+        {
+            if (seg[0] == "scene") return ref("scenes", asset.scene);
+            if (!isLength) return false;
+            static const char *const collections[] = {"animations", "cameras", "materials", "meshes", "nodes",
+                                                      "scenes", "skins", "textures", "images", "samplers",
+                                                      "accessors"};
+            for (const char *c : collections)
+                if (array == c) return length(static_cast<size_t>(collectionSize(c)));
+            return false;
+        }
+        if (seg.size() == 3 && seg[0] == "extensions" && seg[1] == "KHR_lights_punctual" && isLength && array == "lights")
+            return length(asset.khrLightsPunctual ? asset.khrLightsPunctual->size() : 0);
+        if (seg.size() < 3) return false;
+
+        const int64_t i = index(seg[1]);
+        const std::string &top = seg[0];
+        if (top == "nodes" && i >= 0)
+        {
+            const bool known = asset.nodes && i < static_cast<int64_t>(asset.nodes->size());
+            const Node *node = known ? &(*asset.nodes)[static_cast<size_t>(i)] : nullptr;
+            if (seg.size() == 3)
+            {
+                if (isLength && array == "children") return known ? length(node->children.size()) : (handled = true, false);
+                if (isLength && array == "weights")
+                {
+                    if (!known) return handled = true, false;
+                    size_t targets = 0;
+                    if (node->mesh >= 0 && asset.meshes && node->mesh < static_cast<int64_t>(asset.meshes->size()))
+                    {
+                        const auto &primitives = (*asset.meshes)[static_cast<size_t>(node->mesh)].primitives;
+                        if (!primitives.empty()) targets = primitives.front().targets.size();
+                    }
+                    return length(targets);
+                }
+                if (seg[2] == "mesh") return known ? ref("meshes", node->mesh) : (handled = true, false);
+                if (seg[2] == "camera") return known ? ref("cameras", node->camera) : (handled = true, false);
+                if (seg[2] == "skin") return known ? ref("skins", node->skin) : (handled = true, false);
+                if (seg[2] == "parent")
+                    return known && static_cast<size_t>(i) < parent.size() ? ref("nodes", parent[static_cast<size_t>(i)])
+                                                                             : (handled = true, false);
+                return false;
+            }
+            if (seg.size() == 4 && seg[2] == "children")
+            {
+                const int64_t c = index(seg[3]);
+                if (!known || c < 0 || c >= static_cast<int64_t>(node->children.size())) return handled = true, false;
+                return ref("nodes", static_cast<int64_t>(node->children[static_cast<size_t>(c)]));
+            }
+            return false;
+        }
+        if (top == "meshes" && i >= 0)
+        {
+            const bool known = asset.meshes && i < static_cast<int64_t>(asset.meshes->size());
+            if (seg.size() == 3 && isLength && array == "primitives")
+                return known ? length((*asset.meshes)[static_cast<size_t>(i)].primitives.size()) : (handled = true, false);
+            if (seg.size() == 5 && seg[2] == "primitives" && seg[4] == "material")
+            {
+                const int64_t p = index(seg[3]);
+                if (!known || p < 0) return handled = true, false;
+                const auto &primitives = (*asset.meshes)[static_cast<size_t>(i)].primitives;
+                if (p >= static_cast<int64_t>(primitives.size())) return handled = true, false;
+                return ref("materials", primitives[static_cast<size_t>(p)].material);
+            }
+            return false;
+        }
+        if (top == "scenes" && i >= 0)
+        {
+            const bool known = asset.scenes && i < static_cast<int64_t>(asset.scenes->size());
+            const auto nodes = known ? (*asset.scenes)[static_cast<size_t>(i)].nodes : nullptr;
+            if (seg.size() == 3 && isLength && array == "nodes") return known ? length(nodes ? nodes->size() : 0) : (handled = true, false);
+            if (seg.size() == 4 && seg[2] == "nodes")
+            {
+                const int64_t n = index(seg[3]);
+                if (!nodes || n < 0 || n >= static_cast<int64_t>(nodes->size())) return handled = true, false;
+                return ref("nodes", static_cast<int64_t>((*nodes)[static_cast<size_t>(n)]));
+            }
+            return false;
+        }
+        if (top == "skins" && i >= 0)
+        {
+            const bool known = asset.skins && i < static_cast<int64_t>(asset.skins->size());
+            const Skin *skin = known ? &(*asset.skins)[static_cast<size_t>(i)] : nullptr;
+            const auto joints = skin ? skin->joints : nullptr;
+            if (seg.size() == 3 && isLength && array == "joints") return known ? length(joints ? joints->size() : 0) : (handled = true, false);
+            if (seg.size() == 3 && seg[2] == "skeleton") return known ? ref("nodes", skin->skeleton) : (handled = true, false);
+            if (seg.size() == 4 && seg[2] == "joints")
+            {
+                const int64_t j = index(seg[3]);
+                if (!joints || j < 0 || j >= static_cast<int64_t>(joints->size())) return handled = true, false;
+                return ref("nodes", static_cast<int64_t>((*joints)[static_cast<size_t>(j)]));
+            }
+            return false;
+        }
+        return false;
+    }
+
     bool getPointer(const std::string &pointer, Sig sig, Value &v)
     {
         // Animation State: /animations/N/extensions/KHR_interactivity/<property>.
@@ -1756,6 +1890,10 @@ struct InteractivityRuntime::Impl
                 return true;
             }
         }
+        // The asset's structure (read-only): array sizes and references.
+        bool handled = false;
+        const bool found = structurePointer(pointer, sig, v, handled);
+        if (handled) return found;
         // Implementation limits.
         if (pointer.rfind("/extensions/KHR_interactivity/limits/", 0) == 0)
         {
