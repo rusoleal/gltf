@@ -130,9 +130,16 @@ TEST(InteractivityRuntime, ForLoopSumsIntoAVariableAndSetsAPointer)
     InteractivityRuntime runtime(*asset, host);
     ASSERT_TRUE(runtime.valid());
     EXPECT_TRUE(runtime.unsupportedOperations().empty());
+    ASSERT_EQ(runtime.variables().size(), 1u);
+    EXPECT_EQ(runtime.variables()[0].i, 0);
+    ASSERT_EQ(runtime.eventCounts().size(), 1u);
+    EXPECT_EQ(runtime.eventCounts().at("event/onStart"), 0u);
     runtime.start();
     ASSERT_TRUE(host.properties.count("/nodes/2/extras/sum"));
     EXPECT_DOUBLE_EQ(host.properties["/nodes/2/extras/sum"].f[0], 10.0); // 0+1+2+3+4
+    EXPECT_EQ(runtime.variables()[0].type, Sig::Int);
+    EXPECT_EQ(runtime.variables()[0].i, 10);
+    EXPECT_EQ(runtime.eventCounts().at("event/onStart"), 1u);
 }
 
 TEST(InteractivityRuntime, IntegerArithmeticWrapsAndDividesByZeroToZero)
@@ -226,6 +233,7 @@ TEST(InteractivityRuntime, SelectPropagatesToAncestorsUnlessStopped)
     EXPECT_EQ(host.logs[0], "child");
     EXPECT_EQ(host.logs[1], "parent /nodes/1");
     EXPECT_FALSE(runtime.select(2));
+    EXPECT_EQ(runtime.eventCounts().at("event/onSelect"), 2u); // the child's handler and the parent's
 }
 
 TEST(InteractivityRuntime, QuaternionAndMatrixOperations)

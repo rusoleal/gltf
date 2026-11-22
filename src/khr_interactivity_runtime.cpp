@@ -390,6 +390,7 @@ struct InteractivityRuntime::Impl
 
     std::vector<std::string> unsupported;
     std::vector<std::string> errors;
+    std::map<std::string, uint64_t> eventCounts; // handlers run, by event operation
 
     Impl(const GLTF &a, InteractivityHost &h) : asset(a), host(h)
     {
@@ -423,6 +424,7 @@ struct InteractivityRuntime::Impl
             const auto &node = graph->nodes[i];
             const auto &decl = graph->declarations[static_cast<size_t>(node.declaration)];
             ops[i] = decl.op;
+            if (decl.op.rfind("event/on", 0) == 0 || decl.op == "event/receive") eventCounts.emplace(decl.op, 0);
             flowNode[i] = isFlowOperation(decl.op);
             supported[i] = implemented(decl.op);
             if (!supported[i]) missing.insert(decl.op);
@@ -2369,6 +2371,7 @@ struct InteractivityRuntime::Impl
         {
             if (stopImmediate) break;
             setOutputs(h);
+            ++eventCounts[ops[static_cast<size_t>(h)]];
             state[static_cast<size_t>(h)].outputs["event"] = Value::ofRef(event);
             activate(h, "in");
         }
@@ -2581,5 +2584,9 @@ void InteractivityRuntime::receive(int64_t eventIndex, const std::map<std::strin
 const std::vector<std::string> &InteractivityRuntime::unsupportedOperations() const { return impl_->unsupported; }
 
 const std::vector<std::string> &InteractivityRuntime::errors() const { return impl_->errors; }
+
+const std::vector<InteractivityRuntimeValue> &InteractivityRuntime::variables() const { return impl_->variables; }
+
+const std::map<std::string, uint64_t> &InteractivityRuntime::eventCounts() const { return impl_->eventCounts; }
 
 } // namespace systems::leal::gltf
