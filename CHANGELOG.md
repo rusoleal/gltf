@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-22
+
 ### Added
 - **KHR_interactivity runtime: animations, interpolation and hover.**
   - `animation/start`, `animation/stop` and `animation/stopAt`. They follow the specification's animation state rules: playing between any two times (beyond the keyframes the animation repeats), forwards or backwards, at a speed; `done` when the end or stop time is reached; a new start replaces the one playing without its `done`. The runtime decides the time to show and calls the new `InteractivityHost::applyAnimation(animation, time)` on each tick; `animationStopped(animation)` says the graph let go of it. The read-only Animation State pointers (`/animations/N/extensions/KHR_interactivity/isPlaying`, `minTime`, `maxTime`, `playhead`, `virtualPlayhead`) are answered by the runtime.
