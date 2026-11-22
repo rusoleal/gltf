@@ -479,7 +479,7 @@ struct InteractivityRuntime::Impl
             "math/slerp", "math/quatConjugate", "math/quatMul", "math/quatAngleBetween", "math/quatFromAxisAngle",
             "math/quatToAxisAngle", "math/quatFromDirections", "math/quatFromUpForward", "math/quatFromAngles",
             "math/quatSlerp", "math/not", "math/and", "math/or", "math/xor", "math/asr", "math/lsl", "math/clz",
-            "math/ctz", "math/popcnt",
+            "math/ctz", "math/popcnt", "math/rgbToOkLCh", "math/rgbFromOkLCh",
             // other pure operations
             "ref/eq", "type/boolToInt", "type/boolToFloat", "type/intToBool", "type/intToFloat",
             "type/floatToBool", "type/floatToInt", "variable/get", "pointer/get",
@@ -1164,6 +1164,36 @@ struct InteractivityRuntime::Impl
             set(Value::ofFloats(Sig::Float4x4, m));
             return;
         }
+        // OkLCh (the specification's matrices, from the original Oklab
+        // document): linear BT.709 RGB, hue in radians; no clamping, NaN and
+        // infinity propagate.
+        if (op == "math/rgbToOkLCh")
+        {
+            const double r = in("r").f[0], g = in("g").f[0], b = in("b").f[0];
+            const double l1 = std::cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+            const double m1 = std::cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+            const double s1 = std::cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+            const double L = 0.2104542553 * l1 + 0.7936177850 * m1 - 0.0040720468 * s1;
+            const double A = 1.9779984951 * l1 - 2.4285922050 * m1 + 0.4505937099 * s1;
+            const double B = 0.0259040371 * l1 + 0.7827717662 * m1 - 0.8086757660 * s1;
+            out["l"] = Value::ofFloat(L);
+            out["c"] = Value::ofFloat(std::sqrt(A * A + B * B));
+            out["h"] = Value::ofFloat(std::atan2(B, A));
+            return;
+        }
+        if (op == "math/rgbFromOkLCh")
+        {
+            const double L = in("l").f[0], C = in("c").f[0], h = in("h").f[0];
+            const double A = C * std::cos(h), B = C * std::sin(h);
+            const double l1 = L + 0.3963377774 * A + 0.2158037573 * B;
+            const double m1 = L - 0.1055613458 * A - 0.0638541728 * B;
+            const double s1 = L - 0.0894841775 * A - 1.2914855480 * B;
+            const double l3 = l1 * l1 * l1, m3 = m1 * m1 * m1, s3 = s1 * s1 * s1;
+            out["r"] = Value::ofFloat(4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3);
+            out["g"] = Value::ofFloat(-1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3);
+            out["b"] = Value::ofFloat(-0.0041960863 * l3 - 0.7034186147 * m3 + 1.7076147010 * s3);
+            return;
+        }
         if (op == "math/matDecompose")
         {
             const Value a = in("a");
@@ -1713,6 +1743,140 @@ struct InteractivityRuntime::Impl
         }
     }
 
+    // The glTF Asset Object Model's read-only structure pointers, answered from
+    // the asset: array sizes ("/nodes.length", "/nodes/2/children.length"; 0
+    // for an array that isn't defined) and references ("/nodes/2/mesh",
+    // "/nodes/2/parent", "/scenes/0/nodes/[1]", "/scene"). `handled` says
+    // whether the pointer is one of them; the result, whether it resolved (a
+    // node without a mesh, a root's parent and indices out of range don't).
+    bool structurePointer(const std::string &pointer, Sig sig, Value &v, bool &handled) const
+    {
+        std::vector<std::string> seg;
+        for (size_t at = 1; at <= pointer.size();)
+        {
+            const size_t next = std::min(pointer.find('/', at), pointer.size());
+            seg.push_back(pointer.substr(at, next - at));
+            at = next + 1;
+        }
+        if (pointer.empty() || pointer[0] != '/' || seg.empty()) return false;
+        auto index = [](const std::string &s) -> int64_t {
+            if (s.empty() || s.size() > 10 || s.find_first_not_of("0123456789") != std::string::npos) return -1;
+            return std::stoll(s);
+        };
+        auto length = [&](size_t n) {
+            handled = true;
+            if (sig != Sig::Int) return false;
+            v = Value::ofInt(static_cast<int32_t>(n));
+            return true;
+        };
+        auto ref = [&](const char *collection, int64_t i) {
+            handled = true;
+            if (sig != Sig::Ref || i < 0 || i >= collectionSize(collection)) return false;
+            v = Value::ofRef(Ref{Ref::Kind::Object, collection, i, 0});
+            return true;
+        };
+        const std::string &last = seg.back();
+        const bool isLength = last.size() > 7 && last.compare(last.size() - 7, 7, ".length") == 0;
+        const std::string array = isLength ? last.substr(0, last.size() - 7) : last;
+
+        // "/<collection>.length", "/extensions/KHR_lights_punctual/lights.length", "/scene".
+        if (seg.size() == 1)
+        {
+            if (seg[0] == "scene") return ref("scenes", asset.scene);
+            if (!isLength) return false;
+            static const char *const collections[] = {"animations", "cameras", "materials", "meshes", "nodes",
+                                                      "scenes", "skins", "textures", "images", "samplers",
+                                                      "accessors"};
+            for (const char *c : collections)
+                if (array == c) return length(static_cast<size_t>(collectionSize(c)));
+            return false;
+        }
+        if (seg.size() == 3 && seg[0] == "extensions" && seg[1] == "KHR_lights_punctual" && isLength && array == "lights")
+            return length(asset.khrLightsPunctual ? asset.khrLightsPunctual->size() : 0);
+        if (seg.size() < 3) return false;
+
+        const int64_t i = index(seg[1]);
+        const std::string &top = seg[0];
+        if (top == "nodes" && i >= 0)
+        {
+            const bool known = asset.nodes && i < static_cast<int64_t>(asset.nodes->size());
+            const Node *node = known ? &(*asset.nodes)[static_cast<size_t>(i)] : nullptr;
+            if (seg.size() == 3)
+            {
+                if (isLength && array == "children") return known ? length(node->children.size()) : (handled = true, false);
+                if (isLength && array == "weights")
+                {
+                    if (!known) return handled = true, false;
+                    size_t targets = 0;
+                    if (node->mesh >= 0 && asset.meshes && node->mesh < static_cast<int64_t>(asset.meshes->size()))
+                    {
+                        const auto &primitives = (*asset.meshes)[static_cast<size_t>(node->mesh)].primitives;
+                        if (!primitives.empty()) targets = primitives.front().targets.size();
+                    }
+                    return length(targets);
+                }
+                if (seg[2] == "mesh") return known ? ref("meshes", node->mesh) : (handled = true, false);
+                if (seg[2] == "camera") return known ? ref("cameras", node->camera) : (handled = true, false);
+                if (seg[2] == "skin") return known ? ref("skins", node->skin) : (handled = true, false);
+                if (seg[2] == "parent")
+                    return known && static_cast<size_t>(i) < parent.size() ? ref("nodes", parent[static_cast<size_t>(i)])
+                                                                             : (handled = true, false);
+                return false;
+            }
+            if (seg.size() == 4 && seg[2] == "children")
+            {
+                const int64_t c = index(seg[3]);
+                if (!known || c < 0 || c >= static_cast<int64_t>(node->children.size())) return handled = true, false;
+                return ref("nodes", static_cast<int64_t>(node->children[static_cast<size_t>(c)]));
+            }
+            return false;
+        }
+        if (top == "meshes" && i >= 0)
+        {
+            const bool known = asset.meshes && i < static_cast<int64_t>(asset.meshes->size());
+            if (seg.size() == 3 && isLength && array == "primitives")
+                return known ? length((*asset.meshes)[static_cast<size_t>(i)].primitives.size()) : (handled = true, false);
+            if (seg.size() == 5 && seg[2] == "primitives" && seg[4] == "material")
+            {
+                const int64_t p = index(seg[3]);
+                if (!known || p < 0) return handled = true, false;
+                const auto &primitives = (*asset.meshes)[static_cast<size_t>(i)].primitives;
+                if (p >= static_cast<int64_t>(primitives.size())) return handled = true, false;
+                return ref("materials", primitives[static_cast<size_t>(p)].material);
+            }
+            return false;
+        }
+        if (top == "scenes" && i >= 0)
+        {
+            const bool known = asset.scenes && i < static_cast<int64_t>(asset.scenes->size());
+            const auto nodes = known ? (*asset.scenes)[static_cast<size_t>(i)].nodes : nullptr;
+            if (seg.size() == 3 && isLength && array == "nodes") return known ? length(nodes ? nodes->size() : 0) : (handled = true, false);
+            if (seg.size() == 4 && seg[2] == "nodes")
+            {
+                const int64_t n = index(seg[3]);
+                if (!nodes || n < 0 || n >= static_cast<int64_t>(nodes->size())) return handled = true, false;
+                return ref("nodes", static_cast<int64_t>((*nodes)[static_cast<size_t>(n)]));
+            }
+            return false;
+        }
+        if (top == "skins" && i >= 0)
+        {
+            const bool known = asset.skins && i < static_cast<int64_t>(asset.skins->size());
+            const Skin *skin = known ? &(*asset.skins)[static_cast<size_t>(i)] : nullptr;
+            const auto joints = skin ? skin->joints : nullptr;
+            if (seg.size() == 3 && isLength && array == "joints") return known ? length(joints ? joints->size() : 0) : (handled = true, false);
+            if (seg.size() == 3 && seg[2] == "skeleton") return known ? ref("nodes", skin->skeleton) : (handled = true, false);
+            if (seg.size() == 4 && seg[2] == "joints")
+            {
+                const int64_t j = index(seg[3]);
+                if (!joints || j < 0 || j >= static_cast<int64_t>(joints->size())) return handled = true, false;
+                return ref("nodes", static_cast<int64_t>((*joints)[static_cast<size_t>(j)]));
+            }
+            return false;
+        }
+        return false;
+    }
+
     bool getPointer(const std::string &pointer, Sig sig, Value &v)
     {
         // Animation State: /animations/N/extensions/KHR_interactivity/<property>.
@@ -1756,6 +1920,10 @@ struct InteractivityRuntime::Impl
                 return true;
             }
         }
+        // The asset's structure (read-only): array sizes and references.
+        bool handled = false;
+        const bool found = structurePointer(pointer, sig, v, handled);
+        if (handled) return found;
         // Implementation limits.
         if (pointer.rfind("/extensions/KHR_interactivity/limits/", 0) == 0)
         {
