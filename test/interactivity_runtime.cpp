@@ -52,7 +52,12 @@ namespace
         void log(const std::string &message) override { logs.push_back(message); }
         void eventSent(int64_t eventIndex, const std::map<std::string, Value> &) override { sent.push_back(eventIndex); }
         double random() override { return next; }
+        void applyAnimation(int64_t animation, double time) override { applied.emplace_back(animation, time); }
+        void animationStopped(int64_t animation) override { stopped.push_back(animation); }
+        std::vector<std::pair<int64_t, double>> applied;
+        std::vector<int64_t> stopped;
     };
+
 
     auto kNoFiles = [](const std::string &) {
         return std::async(std::launch::deferred, [] { return std::vector<uint8_t>{}; });
@@ -66,6 +71,22 @@ namespace
         for (int i = 0; i < nodeCount; ++i) nodes += std::string(i ? "," : "") + (i == 0 ? R"({"children": [1]})" : "{}");
         const std::string json = R"({"asset": {"version": "2.0"}, "extensionsUsed": ["KHR_interactivity"],
             "nodes": [)" + nodes + R"(], "extensions": {"KHR_interactivity": {"graph": 0, "graphs": [)" + graph + "]}}}";
+        return GLTF::loadGLTF(json, kNoFiles);
+    }
+
+    // A glTF with one 2 s animation (node 0's translation; keyframes at 0 and
+    // 2 s) and the given KHR_interactivity graph.
+    std::shared_ptr<GLTF> withAnimation(const std::string &graph)
+    {
+        const std::string json = R"({"asset": {"version": "2.0"}, "extensionsUsed": ["KHR_interactivity"],
+            "nodes": [{}],
+            "buffers": [{"byteLength": 32, "uri": "data:application/octet-stream;base64,AAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}],
+            "bufferViews": [{"buffer": 0, "byteOffset": 0, "byteLength": 8}, {"buffer": 0, "byteOffset": 8, "byteLength": 24}],
+            "accessors": [{"bufferView": 0, "componentType": 5126, "count": 2, "type": "SCALAR", "min": [0], "max": [2]},
+                          {"bufferView": 1, "componentType": 5126, "count": 2, "type": "VEC3"}],
+            "animations": [{"channels": [{"sampler": 0, "target": {"node": 0, "path": "translation"}}],
+                            "samplers": [{"input": 0, "output": 1}]}],
+            "extensions": {"KHR_interactivity": {"graph": 0, "graphs": [)" + graph + "]}}}";
         return GLTF::loadGLTF(json, kNoFiles);
     }
 
@@ -377,4 +398,172 @@ TEST(InteractivityRuntime, RunsEveryValidTestAsset)
     std::string list;
     for (const auto &[op, count] : unsupported) list += " " + op + " (" + std::to_string(count) + ")";
     std::printf("[runtime] ran %d assets; no-op operations:%s\n", ran, list.empty() ? " none" : list.c_str());
+}
+
+namespace
+{
+    const char *kTypes4 = R"("types": [{"signature": "bool"}, {"signature": "int"}, {"signature": "float"},
+                                        {"signature": "float2"}, {"signature": "float3"}, {"signature": "ref"},
+                                        {"signature": "float4"}])";
+    // Linear easing: control points on the diagonal.
+    const std::string kLinear = R"("p1": {"type": 3, "value": [0, 0]}, "p2": {"type": 3, "value": [1, 1]})";
+} // namespace
+
+TEST(InteractivityRuntime, VariableInterpolateEasesToTheTargetThenFiresDone)
+{
+    // onStart -> interpolate v from 0 to 4 in 2 s -> done: log "done"; onTick: log v
+    auto asset = withGraph(std::string("{") + kTypes + R"(,
+        "variables": [{"type": 2, "value": [0]}],
+        "declarations": [{"op": "event/onStart"}, {"op": "variable/interpolate"}, {"op": "debug/log"},
+                         {"op": "event/onTick"}, {"op": "variable/get"}],
+        "nodes": [
+          {"declaration": 0, "flows": {"out": {"node": 1}}},
+          {"declaration": 1, "configuration": {"variable": {"value": [0]}, "useSlerp": {"value": [false]}},
+           "values": {"value": {"type": 2, "value": [4]}, "duration": {"type": 2, "value": [2]}, )" + kLinear + R"(},
+           "flows": {"done": {"node": 2}}},
+          {"declaration": 2, "configuration": {"message": {"value": ["done"]}}},
+          {"declaration": 4, "configuration": {"variable": {"value": [0]}}},
+          {"declaration": 3, "flows": {"out": {"node": 5}}},
+          {"declaration": 2, "configuration": {"message": {"value": ["{v}"]}}, "values": {"v": {"node": 3, "socket": "value"}}}
+        ]})");
+    ASSERT_NE(asset, nullptr);
+    ASSERT_TRUE(asset->khrInteractivity->valid) << asset->khrInteractivity->error;
+    FakeHost host;
+    InteractivityRuntime runtime(*asset, host);
+    EXPECT_TRUE(runtime.unsupportedOperations().empty());
+    runtime.start();
+    EXPECT_TRUE(runtime.animating());
+    runtime.tick(0.0);
+    runtime.tick(0.5);
+    runtime.tick(1.5);
+    EXPECT_EQ(host.logs, (std::vector<std::string>{"0", "1", "done", "4"}));
+    EXPECT_FALSE(runtime.animating());
+}
+
+TEST(InteractivityRuntime, PointerInterpolateSlerpsRotations)
+{
+    // onStart -> interpolate /nodes/0/rotation to a half turn about Y in 1 s
+    // -> out: interpolate a missing property (err: log "err"); done: log "done"
+    auto asset = withGraph(std::string("{") + kTypes4 + R"(,
+        "declarations": [{"op": "event/onStart"}, {"op": "pointer/interpolate"}, {"op": "debug/log"}],
+        "nodes": [
+          {"declaration": 0, "flows": {"out": {"node": 1}}},
+          {"declaration": 1, "configuration": {"pointer": {"value": ["/nodes/0/rotation"]}, "type": {"value": [6]}},
+           "values": {"value": {"type": 6, "value": [0, 1, 0, 0]}, "duration": {"type": 2, "value": [1]}, )" + kLinear + R"(},
+           "flows": {"out": {"node": 2}, "done": {"node": 3}}},
+          {"declaration": 1, "configuration": {"pointer": {"value": ["/nodes/0/missing"]}, "type": {"value": [2]}},
+           "values": {"value": {"type": 2, "value": [1]}, "duration": {"type": 2, "value": [1]}, )" + kLinear + R"(},
+           "flows": {"err": {"node": 4}}},
+          {"declaration": 2, "configuration": {"message": {"value": ["done"]}}},
+          {"declaration": 2, "configuration": {"message": {"value": ["err"]}}}
+        ]})");
+    ASSERT_NE(asset, nullptr);
+    ASSERT_TRUE(asset->khrInteractivity->valid) << asset->khrInteractivity->error;
+    FakeHost host;
+    const double identity[4] = {0, 0, 0, 1};
+    host.properties["/nodes/0/rotation"] = Value::ofFloats(Sig::Float4, identity);
+    InteractivityRuntime runtime(*asset, host);
+    runtime.start();
+    EXPECT_EQ(host.logs, (std::vector<std::string>{"err"}));
+    runtime.tick(0.0);
+    runtime.tick(0.5);
+    const auto &q = host.properties["/nodes/0/rotation"].f;
+    EXPECT_NEAR(q[1], std::sqrt(0.5), 1e-6); // slerp; a lerp gives 0.5
+    EXPECT_NEAR(q[3], std::sqrt(0.5), 1e-6);
+    runtime.tick(0.5);
+    EXPECT_DOUBLE_EQ(host.properties["/nodes/0/rotation"].f[1], 1.0);
+    EXPECT_EQ(host.logs, (std::vector<std::string>{"err", "done"}));
+}
+
+TEST(InteractivityRuntime, AnimationStartPlaysToItsEndTimeAndWraps)
+{
+    // onStart -> start animation 0 from 0 to 5 s (it lasts 2 s: it repeats)
+    // -> done: log "ended {playhead}"
+    auto asset = withAnimation(std::string("{") + kTypes + R"(,
+        "declarations": [{"op": "event/onStart"}, {"op": "animation/start"}, {"op": "debug/log"}, {"op": "pointer/get"}],
+        "nodes": [
+          {"declaration": 0, "flows": {"out": {"node": 1}}},
+          {"declaration": 1, "values": {"animation": {"type": 5, "value": ["/animations/0"]}, "startTime": {"type": 2, "value": [0]},
+                                        "endTime": {"type": 2, "value": [5]}, "speed": {"type": 2, "value": [1]}},
+           "flows": {"done": {"node": 3}}},
+          {"declaration": 3, "configuration": {"pointer": {"value": ["/animations/0/extensions/KHR_interactivity/playhead"]}, "type": {"value": [2]}}},
+          {"declaration": 2, "configuration": {"message": {"value": ["ended {p}"]}}, "values": {"p": {"node": 2, "socket": "value"}}}
+        ]})");
+    ASSERT_NE(asset, nullptr);
+    ASSERT_TRUE(asset->khrInteractivity->valid) << asset->khrInteractivity->error;
+    FakeHost host;
+    InteractivityRuntime runtime(*asset, host);
+    EXPECT_TRUE(runtime.unsupportedOperations().empty());
+    runtime.start();
+    runtime.tick(0.0);
+    runtime.tick(3.0); // 3 s: 1 s into the second repetition
+    runtime.tick(2.5); // past 5 s, the end time
+    ASSERT_EQ(host.applied.size(), 3u);
+    EXPECT_DOUBLE_EQ(host.applied[0].second, 0.0);
+    EXPECT_DOUBLE_EQ(host.applied[1].second, 1.0);
+    EXPECT_DOUBLE_EQ(host.applied[2].second, 1.0); // 5 s is 1 s into the third
+    EXPECT_EQ(host.stopped, (std::vector<int64_t>{0}));
+    EXPECT_EQ(host.logs, (std::vector<std::string>{"ended 1"}));
+    EXPECT_FALSE(runtime.animating());
+}
+
+TEST(InteractivityRuntime, AnimationStopAtEndsEarlyWithItsOwnDone)
+{
+    // onStart -> start animation 0, 0 to 5 s at speed 2 -> out: stopAt 1 s;
+    // start's done logs "ended", stopAt's logs "stopped"
+    auto asset = withAnimation(std::string("{") + kTypes + R"(,
+        "declarations": [{"op": "event/onStart"}, {"op": "animation/start"}, {"op": "animation/stopAt"}, {"op": "debug/log"}],
+        "nodes": [
+          {"declaration": 0, "flows": {"out": {"node": 1}}},
+          {"declaration": 1, "values": {"animation": {"type": 5, "value": ["/animations/0"]}, "startTime": {"type": 2, "value": [0]},
+                                        "endTime": {"type": 2, "value": [5]}, "speed": {"type": 2, "value": [2]}},
+           "flows": {"out": {"node": 2}, "done": {"node": 3}}},
+          {"declaration": 2, "values": {"animation": {"type": 5, "value": ["/animations/0"]}, "stopTime": {"type": 2, "value": [1]}},
+           "flows": {"done": {"node": 4}}},
+          {"declaration": 3, "configuration": {"message": {"value": ["ended"]}}},
+          {"declaration": 3, "configuration": {"message": {"value": ["stopped"]}}}
+        ]})");
+    ASSERT_NE(asset, nullptr);
+    ASSERT_TRUE(asset->khrInteractivity->valid) << asset->khrInteractivity->error;
+    FakeHost host;
+    InteractivityRuntime runtime(*asset, host);
+    runtime.start();
+    runtime.tick(0.0);
+    runtime.tick(1.0); // 2 s of animation: past the stop time
+    ASSERT_EQ(host.applied.size(), 2u);
+    EXPECT_DOUBLE_EQ(host.applied[1].second, 1.0);
+    EXPECT_EQ(host.logs, (std::vector<std::string>{"stopped"}));
+    runtime.tick(5.0);
+    EXPECT_EQ(host.applied.size(), 2u);
+}
+
+TEST(InteractivityRuntime, HoverInAndOutStopBelowTheCommonAncestor)
+{
+    // Node 0 (parent of 1) logs "in {n}" / "out {n}"; node 2 logs "in2".
+    auto asset = withGraph(std::string("{") + kTypes + R"(,
+        "declarations": [{"op": "event/onHoverIn", "extension": "KHR_node_hoverability",
+                          "outputValueSockets": {"hoveredNode": {"type": 5}, "controllerIndex": {"type": 1}, "event": {"type": 5}}},
+                         {"op": "event/onHoverOut", "extension": "KHR_node_hoverability",
+                          "outputValueSockets": {"hoveredNode": {"type": 5}, "controllerIndex": {"type": 1}, "event": {"type": 5}}},
+                         {"op": "debug/log"}],
+        "nodes": [
+          {"declaration": 0, "configuration": {"nodeIndex": {"value": [0]}}, "flows": {"out": {"node": 3}}},
+          {"declaration": 1, "configuration": {"nodeIndex": {"value": [0]}}, "flows": {"out": {"node": 4}}},
+          {"declaration": 0, "configuration": {"nodeIndex": {"value": [2]}}, "flows": {"out": {"node": 5}}},
+          {"declaration": 2, "configuration": {"message": {"value": ["in {n}"]}}, "values": {"n": {"node": 0, "socket": "hoveredNode"}}},
+          {"declaration": 2, "configuration": {"message": {"value": ["out {n}"]}}, "values": {"n": {"node": 1, "socket": "hoveredNode"}}},
+          {"declaration": 2, "configuration": {"message": {"value": ["in2"]}}}
+        ]})");
+    ASSERT_NE(asset, nullptr);
+    ASSERT_TRUE(asset->khrInteractivity->valid) << asset->khrInteractivity->error;
+    FakeHost host;
+    InteractivityRuntime runtime(*asset, host);
+    EXPECT_TRUE(runtime.unsupportedOperations().empty());
+    EXPECT_TRUE(runtime.usesHover());
+    EXPECT_TRUE(runtime.hover(1));
+    EXPECT_FALSE(runtime.hover(0)); // still within node 0's subtree
+    EXPECT_FALSE(runtime.hover(0));
+    EXPECT_TRUE(runtime.hover(2));
+    EXPECT_FALSE(runtime.hover(-1)); // node 2 has no onHoverOut
+    EXPECT_EQ(host.logs, (std::vector<std::string>{"in /nodes/1", "out /nodes/0", "in2"}));
 }

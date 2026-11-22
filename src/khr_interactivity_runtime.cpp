@@ -39,6 +39,10 @@ namespace
     // Nested flow activations (loops in loops...): chains of flow nodes don't
     // nest (tailFire()) and values are computed without recursion.
     constexpr int kMaxDepth = 256;
+    // Delays, animations and interpolations each may have this many active
+    // (/extensions/KHR_interactivity/limits/...), and last at most kMaxDuration s.
+    constexpr size_t kMaxActive = 1024;
+    constexpr double kMaxDuration = 1.0e9;
 
     bool isFloatType(Sig s)
     {
@@ -277,6 +281,44 @@ struct InteractivityRuntime::Impl
     };
     std::vector<Received> queued; // event/send to the graph's own receivers: next tick
 
+    // variable/interpolate and pointer/interpolate in progress.
+    struct Interpolation
+    {
+        uint64_t id;
+        int32_t variable = -1; // variable/interpolate
+        std::string pointer;   // pointer/interpolate
+        double start = 0, duration = 0;
+        Value from, to;
+        double p1[2] = {0, 0}, p2[2] = {1, 1};
+        bool slerp = false;
+        int64_t node = -1; // its `done` flow
+    };
+    std::vector<Interpolation> interpolations;
+
+    // animation/start: the animations the graph plays (the specification's
+    // animation state array).
+    struct Playback
+    {
+        uint64_t id;
+        int64_t animation;
+        double startTime, endTime, stopTime, speed;
+        double created;       // runtime time at activation
+        int64_t endNode;      // animation/start's `done`
+        int64_t stopNode = -1; // animation/stopAt's `done`
+    };
+    std::vector<Playback> playbacks;
+
+    // Per glTF animation: the read-only Animation State properties.
+    struct AnimationInfo
+    {
+        bool valid = false;
+        double minTime = kNaN, maxTime = kNaN;
+        double playhead = kNaN, virtualPlayhead = kNaN;
+    };
+    std::vector<AnimationInfo> animations;
+
+    std::map<int32_t, int64_t> hovered; // controller -> hovered node
+
     double time = 0;         // seconds since start()
     bool started = false;
     bool ticked = false;
@@ -338,6 +380,7 @@ struct InteractivityRuntime::Impl
         unsupported.assign(missing.begin(), missing.end());
 
         for (const auto &v : graph->variables) variables.push_back(literal(v.type, v.value));
+        initAnimations();
         for (size_t i = 0; i < n; ++i) resetState(static_cast<int64_t>(i));
     }
 
@@ -369,10 +412,12 @@ struct InteractivityRuntime::Impl
             // flow
             "flow/sequence", "flow/branch", "flow/switch", "flow/while", "flow/for", "flow/doN",
             "flow/multiGate", "flow/waitAll", "flow/throttle", "flow/setDelay", "flow/cancelDelay",
-            "variable/set", "pointer/set", "debug/log",
+            "variable/set", "pointer/set", "debug/log", "variable/interpolate", "pointer/interpolate",
+            // animation
+            "animation/start", "animation/stop", "animation/stopAt",
             // events
             "event/onStart", "event/onTick", "event/onSelect", "event/stopPropagation", "event/receive",
-            "event/send",
+            "event/send", "event/onHoverIn", "event/onHoverOut",
         };
         return ops.count(op) != 0;
     }
@@ -495,6 +540,12 @@ struct InteractivityRuntime::Impl
             o["controllerIndex"] = Value::ofInt(-1);
             o["selectionPoint"] = Value::defaultOf(Sig::Float3);
             o["selectionRayOrigin"] = Value::defaultOf(Sig::Float3);
+            o["event"] = Value::defaultOf(Sig::Ref);
+        }
+        else if (op == "event/onHoverIn" || op == "event/onHoverOut")
+        {
+            o["hoveredNode"] = Value::defaultOf(Sig::Ref);
+            o["controllerIndex"] = Value::ofInt(-1);
             o["event"] = Value::defaultOf(Sig::Ref);
         }
         else if (op == "event/receive")
@@ -1362,8 +1413,242 @@ struct InteractivityRuntime::Impl
         return true;
     }
 
+    // ---- animations and interpolation ---------------------------------------------------
+
+    // Animation State: an animation is valid when its channels' samplers and
+    // their input accessors exist, with the min and max glTF requires there.
+    void initAnimations()
+    {
+        if (!asset.animations) return;
+        animations.resize(asset.animations->size());
+        for (size_t i = 0; i < asset.animations->size(); ++i)
+        {
+            const auto &anim = (*asset.animations)[i];
+            auto &info = animations[i];
+            double lo = std::numeric_limits<double>::infinity(), hi = 0;
+            bool valid = true;
+            for (const auto &channel : anim.channels)
+            {
+                if (channel.sampler >= anim.samplers.size()) { valid = false; break; }
+                const uint64_t input = anim.samplers[channel.sampler].input;
+                if (!asset.accessors || input >= asset.accessors->size()) { valid = false; break; }
+                const auto &acc = (*asset.accessors)[input];
+                if (!acc.min || !acc.max || acc.min->empty() || acc.max->empty()) { valid = false; break; }
+                lo = std::min(lo, static_cast<double>((*acc.min)[0]));
+                hi = std::max(hi, static_cast<double>((*acc.max)[0]));
+            }
+            info.valid = valid;
+            if (!valid) continue;
+            info.minTime = std::isfinite(lo) ? lo : 0;
+            info.maxTime = hi;
+            info.playhead = info.virtualPlayhead = 0;
+        }
+    }
+
+    // A ref to a glTF animation: its index, or -1.
+    int64_t animationIndex(const Value &v) const
+    {
+        if (v.ref.kind != Ref::Kind::Object || v.ref.collection != "animations") return -1;
+        if (v.ref.index < 0 || static_cast<size_t>(v.ref.index) >= animations.size()) return -1;
+        return v.ref.index;
+    }
+
+    // The specification's requested time r -> effective time in [0, T].
+    static double effectiveTime(double r, double T)
+    {
+        if (!(T > 0)) return 0;
+        const double s = r > 0 ? std::ceil((r - T) / T) : std::floor(r / T);
+        return r - s * T;
+    }
+
+    // The easing: the cubic Bézier from (0,0) to (1,1) through p1, p2, as
+    // y(x(u)⁻¹(t)). x(u) is monotonic (x control points are in [0, 1]).
+    static double ease(const double *p1, const double *p2, double t)
+    {
+        auto bezier = [](double a, double b, double u) {
+            const double v = 1 - u;
+            return 3 * v * v * u * a + 3 * v * u * u * b + u * u * u;
+        };
+        double lo = 0, hi = 1, u = t;
+        for (int k = 0; k < 60; ++k)
+        {
+            u = 0.5 * (lo + hi);
+            if (bezier(p1[0], p2[0], u) < t) lo = u;
+            else hi = u;
+        }
+        return bezier(p1[1], p2[1], u);
+    }
+
+    static Value mix(const Value &a, const Value &b, double q, bool slerp)
+    {
+        Value v = b;
+        if (slerp && b.type == Sig::Float4)
+        {
+            double d = a.f[0] * b.f[0] + a.f[1] * b.f[1] + a.f[2] * b.f[2] + a.f[3] * b.f[3];
+            double sign = 1;
+            if (d < 0) { d = -d; sign = -1; }
+            double ka = 1 - q, kb = q;
+            if (d < 1 - 1e-9)
+            {
+                const double w = std::acos(d);
+                ka = std::sin(w * (1 - q)) / std::sin(w);
+                kb = std::sin(w * q) / std::sin(w);
+            }
+            for (int k = 0; k < 4; ++k) v.f[k] = a.f[k] * ka + sign * b.f[k] * kb;
+            return v;
+        }
+        for (int k = 0; k < Value::componentCount(b.type); ++k) v.f[k] = a.f[k] + (b.f[k] - a.f[k]) * q;
+        return v;
+    }
+
+    // duration and the control points of an interpolation are usable.
+    bool validEasing(int64_t node, double &duration, double *p1, double *p2)
+    {
+        duration = input(node, "duration").f[0];
+        if (!std::isfinite(duration) || duration < 0 || duration > kMaxDuration) return false;
+        const Value a = input(node, "p1"), b = input(node, "p2");
+        for (int k = 0; k < 2; ++k)
+        {
+            if (!std::isfinite(a.f[k]) || !std::isfinite(b.f[k])) return false;
+            p1[k] = a.f[k];
+            p2[k] = b.f[k];
+        }
+        return p1[0] >= 0 && p1[0] <= 1 && p2[0] >= 0 && p2[0] <= 1;
+    }
+
+    // Runs a `done` flow from the tick (a nested activation from depth 0).
+    void fireDone(int64_t node)
+    {
+        if (node < 0) return;
+        steps = 0;
+        aborted = false;
+        depth = 0;
+        fire(node, "done");
+    }
+
+    // Each animation the graph plays, at the current time (animation/start's
+    // "asset animation update").
+    void updateAnimations()
+    {
+        std::vector<uint64_t> ids;
+        for (const auto &p : playbacks) ids.push_back(p.id);
+        for (const uint64_t id : ids)
+        {
+            const auto it = std::find_if(playbacks.begin(), playbacks.end(), [id](const Playback &p) { return p.id == id; });
+            if (it == playbacks.end()) continue; // a `done` handler stopped it
+            const Playback p = *it;
+            double r;
+            bool finished = true;
+            int64_t done = -1;
+            if (p.startTime == p.endTime)
+            {
+                r = p.startTime;
+                done = p.endNode;
+            }
+            else
+            {
+                const bool forward = p.startTime < p.endTime;
+                double scaled = std::max(0.0, time - p.created) * p.speed;
+                if (!forward) scaled = -scaled;
+                const double current = p.startTime + scaled;
+                if (forward ? (current >= p.stopTime && p.stopTime >= p.startTime && p.stopTime < p.endTime)
+                            : (current <= p.stopTime && p.stopTime <= p.startTime && p.stopTime > p.endTime))
+                {
+                    r = p.stopTime;
+                    done = p.stopNode;
+                }
+                else if (forward ? current >= p.endTime : current <= p.endTime)
+                {
+                    r = p.endTime;
+                    done = p.endNode;
+                }
+                else
+                {
+                    r = current;
+                    finished = false;
+                }
+            }
+            auto &info = animations[static_cast<size_t>(p.animation)];
+            info.virtualPlayhead = r;
+            info.playhead = effectiveTime(r, info.maxTime);
+            host.applyAnimation(p.animation, info.playhead);
+            if (!finished) continue;
+            playbacks.erase(std::find_if(playbacks.begin(), playbacks.end(), [id](const Playback &q) { return q.id == id; }));
+            host.animationStopped(p.animation);
+            fireDone(done);
+        }
+    }
+
+    // Each variable/pointer interpolation in progress, at the current time.
+    void updateInterpolations()
+    {
+        std::vector<uint64_t> ids;
+        for (const auto &e : interpolations) ids.push_back(e.id);
+        for (const uint64_t id : ids)
+        {
+            const auto it = std::find_if(interpolations.begin(), interpolations.end(),
+                                         [id](const Interpolation &e) { return e.id == id; });
+            if (it == interpolations.end()) continue;
+            const Interpolation e = *it;
+            const double t = (time - e.start) / e.duration;
+            if (t <= 0) continue;
+            const bool finished = std::isnan(t) || t >= 1;
+            Value v = finished ? e.to : mix(e.from, e.to, ease(e.p1, e.p2, t), e.slerp);
+            if (e.variable >= 0) variables[static_cast<size_t>(e.variable)] = v;
+            else host.setPointer(e.pointer, v);
+            if (!finished) continue;
+            interpolations.erase(std::find_if(interpolations.begin(), interpolations.end(),
+                                              [id](const Interpolation &x) { return x.id == id; }));
+            fireDone(e.node);
+        }
+    }
+
     bool getPointer(const std::string &pointer, Sig sig, Value &v)
     {
+        // Animation State: /animations/N/extensions/KHR_interactivity/<property>.
+        if (pointer.rfind("/animations/", 0) == 0)
+        {
+            const std::string rest = pointer.substr(12);
+            const size_t slash = rest.find('/');
+            const std::string suffix = slash == std::string::npos ? "" : rest.substr(slash);
+            const std::string index = rest.substr(0, slash);
+            if (suffix.rfind("/extensions/KHR_interactivity/", 0) == 0 && !index.empty() && index.size() < 10 &&
+                index.find_first_not_of("0123456789") == std::string::npos)
+            {
+                const size_t a = std::stoul(index);
+                if (a >= animations.size()) return false;
+                const auto &info = animations[a];
+                const std::string property = suffix.substr(30);
+                if (property == "isPlaying")
+                {
+                    if (sig != Sig::Bool) return false;
+                    v = Value::ofBool(std::any_of(playbacks.begin(), playbacks.end(),
+                                                  [a](const Playback &p) { return p.animation == static_cast<int64_t>(a); }));
+                    return true;
+                }
+                const double *f = property == "minTime" ? &info.minTime
+                                  : property == "maxTime" ? &info.maxTime
+                                  : property == "playhead" ? &info.playhead
+                                  : property == "virtualPlayhead" ? &info.virtualPlayhead
+                                  : nullptr;
+                if (!f || sig != Sig::Float) return false;
+                v = Value::ofFloat(*f);
+                return true;
+            }
+        }
+        // Implementation limits.
+        if (pointer.rfind("/extensions/KHR_interactivity/limits/", 0) == 0)
+        {
+            const std::string name = pointer.substr(37);
+            if (sig != Sig::Int) return false;
+            if (name == "maxActiveDelays" || name == "maxActiveAnimations" ||
+                name == "maxActivePropertyInterpolations" || name == "maxActiveVariableInterpolations")
+            {
+                v = Value::ofInt(static_cast<int32_t>(kMaxActive));
+                return true;
+            }
+            return false;
+        }
         // The runtime's own read-only properties.
         for (const char *prefix : {"/extensions/KHR_interactivity/delays/@", "/extensions/KHR_interactivity/events/@"})
         {
@@ -1579,7 +1864,7 @@ struct InteractivityRuntime::Impl
                 return;
             }
             const double duration = input(node, "duration").f[0];
-            if (!std::isfinite(duration) || duration < 0 || duration > 1.0e9 || delays.size() >= 1024)
+            if (!std::isfinite(duration) || duration < 0 || duration > kMaxDuration || delays.size() >= kMaxActive)
             {
                 tailFire(node, "err");
                 return;
@@ -1605,7 +1890,42 @@ struct InteractivityRuntime::Impl
             for (const int32_t v : vars)
                 if (v >= 0 && static_cast<size_t>(v) < variables.size() && seen.insert(v).second)
                     values.emplace_back(v, input(node, std::to_string(v)));
-            for (auto &[v, value] : values) variables[static_cast<size_t>(v)] = value;
+            for (auto &[v, value] : values)
+            {
+                variables[static_cast<size_t>(v)] = value;
+                const int32_t var = v;
+                interpolations.erase(std::remove_if(interpolations.begin(), interpolations.end(),
+                                                    [var](const Interpolation &e) { return e.variable == var; }),
+                                     interpolations.end());
+            }
+            tailFire(node, "out");
+        }
+        else if (op == "variable/interpolate")
+        {
+            int32_t var = -1;
+            bool slerp = false;
+            configInt(node, "variable", var);
+            configBool(node, "useSlerp", slerp);
+            Interpolation e;
+            if (var < 0 || static_cast<size_t>(var) >= variables.size() || !validEasing(node, e.duration, e.p1, e.p2) ||
+                std::count_if(interpolations.begin(), interpolations.end(),
+                              [](const Interpolation &x) { return x.variable >= 0; }) >= static_cast<long>(kMaxActive))
+            {
+                tailFire(node, "err");
+                return;
+            }
+            interpolations.erase(std::remove_if(interpolations.begin(), interpolations.end(),
+                                                [var](const Interpolation &x) { return x.variable == var; }),
+                                 interpolations.end());
+            e.id = nextId++;
+            e.variable = var;
+            e.start = time;
+            e.from = variables[static_cast<size_t>(var)];
+            e.to = input(node, "value");
+            e.to.type = e.from.type;
+            e.slerp = slerp && e.from.type == Sig::Float4;
+            e.node = node;
+            interpolations.push_back(e);
             tailFire(node, "out");
         }
         else if (op == "pointer/set")
@@ -1615,9 +1935,86 @@ struct InteractivityRuntime::Impl
             Value value = input(node, "value");
             value.type = typeAt(t);
             std::string pointer;
-            const bool ok = effectivePointer(node, pointer) && pointer.rfind("/extensions/KHR_interactivity/", 0) != 0 &&
-                            host.setPointer(pointer, value);
-            tailFire(node, ok ? "out" : "err");
+            const bool resolved = effectivePointer(node, pointer) && pointer.rfind("/extensions/KHR_interactivity/", 0) != 0;
+            if (resolved)
+                interpolations.erase(std::remove_if(interpolations.begin(), interpolations.end(),
+                                                    [&](const Interpolation &e) { return e.variable < 0 && e.pointer == pointer; }),
+                                     interpolations.end());
+            tailFire(node, resolved && host.setPointer(pointer, value) ? "out" : "err");
+        }
+        else if (op == "pointer/interpolate")
+        {
+            int32_t t = -1;
+            configInt(node, "type", t);
+            const Sig sig = typeAt(t);
+            Interpolation e;
+            e.from = Value::defaultOf(sig);
+            // Read the property, and write it back unchanged to learn that it's
+            // mutable (the host has no other way to tell).
+            if (!isFloatType(sig) || !effectivePointer(node, e.pointer) ||
+                e.pointer.rfind("/extensions/KHR_interactivity/", 0) == 0 || !validEasing(node, e.duration, e.p1, e.p2) ||
+                std::count_if(interpolations.begin(), interpolations.end(),
+                              [](const Interpolation &x) { return x.variable < 0; }) >= static_cast<long>(kMaxActive) ||
+                !getPointer(e.pointer, sig, e.from) || !host.setPointer(e.pointer, e.from))
+            {
+                tailFire(node, "err");
+                return;
+            }
+            const std::string pointer = e.pointer;
+            interpolations.erase(std::remove_if(interpolations.begin(), interpolations.end(),
+                                                [&](const Interpolation &x) { return x.variable < 0 && x.pointer == pointer; }),
+                                 interpolations.end());
+            e.id = nextId++;
+            e.start = time;
+            e.to = input(node, "value");
+            e.to.type = sig;
+            e.from.type = sig;
+            // Quaternion properties interpolate spherically.
+            e.slerp = sig == Sig::Float4 && pointer.size() >= 9 && pointer.compare(pointer.size() - 9, 9, "/rotation") == 0;
+            e.node = node;
+            interpolations.push_back(e);
+            tailFire(node, "out");
+        }
+        else if (op == "animation/start")
+        {
+            const int64_t a = animationIndex(input(node, "animation"));
+            const double startTime = input(node, "startTime").f[0], endTime = input(node, "endTime").f[0];
+            const double speed = input(node, "speed").f[0];
+            if (a < 0 || std::isnan(startTime) || !std::isfinite(startTime) || std::isnan(endTime) ||
+                !std::isfinite(speed) || speed <= 0 || !animations[static_cast<size_t>(a)].valid ||
+                playbacks.size() >= kMaxActive)
+            {
+                tailFire(node, "err");
+                return;
+            }
+            // A new start replaces the one playing; its `done` flows don't run.
+            playbacks.erase(std::remove_if(playbacks.begin(), playbacks.end(), [a](const Playback &p) { return p.animation == a; }),
+                            playbacks.end());
+            playbacks.push_back(Playback{nextId++, a, startTime, endTime, endTime, speed, time, node, -1});
+            tailFire(node, "out");
+        }
+        else if (op == "animation/stop")
+        {
+            const int64_t a = animationIndex(input(node, "animation"));
+            if (a < 0) { tailFire(node, "err"); return; }
+            const auto playing = std::remove_if(playbacks.begin(), playbacks.end(), [a](const Playback &p) { return p.animation == a; });
+            const bool was = playing != playbacks.end();
+            playbacks.erase(playing, playbacks.end());
+            if (was) host.animationStopped(a);
+            tailFire(node, "out");
+        }
+        else if (op == "animation/stopAt")
+        {
+            const int64_t a = animationIndex(input(node, "animation"));
+            const double stopTime = input(node, "stopTime").f[0];
+            if (a < 0 || std::isnan(stopTime)) { tailFire(node, "err"); return; }
+            for (auto &p : playbacks)
+                if (p.animation == a)
+                {
+                    p.stopTime = stopTime;
+                    p.stopNode = node;
+                }
+            tailFire(node, "out");
         }
         else if (op == "debug/log")
         {
@@ -1730,6 +2127,9 @@ void InteractivityRuntime::tick(double seconds)
     if (!d.started) start();
     if (d.ticked && std::isfinite(seconds) && seconds > 0) d.time += seconds;
 
+    d.updateAnimations();
+    d.updateInterpolations();
+
     // Delays that are due, in order of their activation time.
     for (;;)
     {
@@ -1794,6 +2194,68 @@ bool InteractivityRuntime::select(int64_t node, int32_t controllerIndex, const d
               }) || any;
     }
     return any;
+}
+
+bool InteractivityRuntime::hover(int64_t node, int32_t controllerIndex)
+{
+    auto &d = *impl_;
+    if (!d.graph) return false;
+    if (!d.started) start();
+    if (node < 0) node = -1;
+    const auto previous = d.hovered.find(controllerIndex);
+    const int64_t before = previous == d.hovered.end() ? -1 : previous->second;
+    if (before == node) return false;
+    d.hovered[controllerIndex] = node;
+
+    auto chainOf = [&](int64_t n) {
+        std::vector<int64_t> chain;
+        for (; n >= 0; n = static_cast<size_t>(n) < d.parent.size() ? d.parent[static_cast<size_t>(n)] : -1)
+            chain.push_back(n);
+        return chain;
+    };
+    const auto left = chainOf(before), entered = chainOf(node);
+    const std::set<int64_t> inLeft(left.begin(), left.end()), inEntered(entered.begin(), entered.end());
+
+    // From the hovered node up, stopping at the subtree that holds both the
+    // previous and the current target (the lowest common ancestor).
+    auto run = [&](const char *op, const std::vector<int64_t> &chain, const std::set<int64_t> &other, int64_t target) {
+        const auto handlers = d.nodesWithOp(op);
+        const Ref event = d.newEvent();
+        bool any = false;
+        d.stopTransitive = false;
+        for (const int64_t n : chain)
+        {
+            if (other.count(n) || d.stopTransitive) break;
+            std::vector<int64_t> here;
+            for (const int64_t h : handlers)
+            {
+                int32_t index = -1;
+                if (d.configInt(h, "nodeIndex", index) && index == n) here.push_back(h);
+            }
+            any = d.dispatch(here, event, [&](int64_t h) {
+                      auto &o = d.state[static_cast<size_t>(h)].outputs;
+                      o["hoveredNode"] = Value::ofRef(Ref{Ref::Kind::Object, "nodes", target, 0});
+                      o["controllerIndex"] = Value::ofInt(controllerIndex);
+                  }) || any;
+        }
+        return any;
+    };
+    bool any = false;
+    if (before >= 0) any = run("event/onHoverOut", left, inEntered, before) || any;
+    if (node >= 0) any = run("event/onHoverIn", entered, inLeft, node) || any;
+    return any;
+}
+
+bool InteractivityRuntime::usesHover() const
+{
+    const auto &d = *impl_;
+    return std::any_of(d.ops.begin(), d.ops.end(),
+                       [](const std::string &op) { return op == "event/onHoverIn" || op == "event/onHoverOut"; });
+}
+
+bool InteractivityRuntime::animating() const
+{
+    return !impl_->playbacks.empty() || !impl_->interpolations.empty();
 }
 
 bool InteractivityRuntime::selectable(int64_t node) const
