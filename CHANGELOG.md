@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Added
+- **KHR_interactivity runtime: animations, interpolation and hover.**
+  - `animation/start`, `animation/stop` and `animation/stopAt`. They follow the specification's animation state rules: playing between any two times (beyond the keyframes the animation repeats), forwards or backwards, at a speed; `done` when the end or stop time is reached; a new start replaces the one playing without its `done`. The runtime decides the time to show and calls the new `InteractivityHost::applyAnimation(animation, time)` on each tick; `animationStopped(animation)` says the graph let go of it. The read-only Animation State pointers (`/animations/N/extensions/KHR_interactivity/isPlaying`, `minTime`, `maxTime`, `playhead`, `virtualPlayhead`) are answered by the runtime.
+  - `variable/interpolate` and `pointer/interpolate`. The value eases along the cubic Bézier through `p1` and `p2`, and `done` fires on the tick that reaches `duration`. Quaternions are interpolated spherically: rotation properties, and variables with `useSlerp`. A new interpolation of the same variable or property replaces the old one, and `variable/set` or `pointer/set` ends it, in both cases without `done`. `pointer/interpolate` goes to `err` for a property that can't be read or written.
+  - KHR_node_hoverability's `event/onHoverIn` and `event/onHoverOut`. The application reports the node under each pointer with the new `InteractivityRuntime::hover(node, controllerIndex)`. Hover out fires first, then hover in, each from the hovered node up to just below the lowest common ancestor of the old and new nodes; `event/stopPropagation` ends it. `usesHover()` says whether the graph has hover handlers.
+  - pointer/get of a glTF object itself, as a `ref` (`/animations/[index]`, `/nodes/3`): Needle's Ghost reads its animations this way.
+  - `/extensions/KHR_interactivity/limits/maxActive{Delays,Animations,PropertyInterpolations,VariableInterpolations}` (1024 each).
+  - `animating()`: whether an animation or interpolation is in progress, so the application keeps drawing frames.
+  - Each `tick()` advances animations, then interpolations, then delays, then runs event/onTick.
+  - Tests: `GhostPlaysItsAnimationsOnHover` (the Ghost showcase model end to end), `VariableInterpolateEasesToTheTargetThenFiresDone`, `PointerInterpolateSlerpsRotations`, `AnimationStartPlaysToItsEndTimeAndWraps`, `AnimationStopAtEndsEarlyWithItsOwnDone`, `HoverInAndOutStopBelowTheCommonAncestor`.
+
+### Changed
+- **The runtime is about 4x faster.** Needle's MiniChess engine thinking took 54 ms per tick natively and now takes 14 ms. Pure node outputs are kept in a flat list per node, invalidated by a generation count instead of clearing a hash map on every step; dependency traversal reuses its storage; inline input values, variable indices and flow output names are prepared once; values are read by reference; and operation names are compared length first, with literal lengths known at compile time.
+
 ## [0.8.0] - 2026-11-21
 
 ### Added

@@ -93,6 +93,20 @@ namespace systems::leal::gltf
         }
         /// math/random and flow/multiGate's random order: a value in [0, 1).
         virtual double random();
+        /// animation/start: show glTF animation `animation` at `time` seconds
+        /// (within its keyframes, [0, maxTime]): sample its channels and write
+        /// them to the scene. Called on every tick while the graph plays it.
+        /// With a behavior graph, animations don't play by themselves: the
+        /// application plays none.
+        virtual void applyAnimation(int64_t animation, double time)
+        {
+            (void)animation;
+            (void)time;
+        }
+        /// The graph stopped playing `animation` (animation/stop, or its end
+        /// or stop time was reached). The properties it animated keep their
+        /// current values.
+        virtual void animationStopped(int64_t animation) { (void)animation; }
     };
 
     /**
@@ -125,8 +139,10 @@ namespace systems::leal::gltf
 
         /// event/onStart (once).
         void start();
-        /// event/onTick, and delays that are due. `seconds`: time since the
-        /// previous tick (or since start() for the first).
+        /// One frame: animations the graph plays advance (applyAnimation()),
+        /// then variable/pointer interpolations, then delays that are due, then
+        /// event/onTick. `seconds`: time since the previous tick (or since
+        /// start() for the first).
         void tick(double seconds);
         /// event/onSelect for `node` and its ancestors (lowest first, until a
         /// handler stops propagation). Returns whether any handler ran.
@@ -135,6 +151,22 @@ namespace systems::leal::gltf
         /// Whether `node` or one of its ancestors has an event/onSelect
         /// handler (to show it can be clicked).
         bool selectable(int64_t node) const;
+        /// The node under the pointer of `controllerIndex` is now `node` (-1:
+        /// none). The application picks it as for select(), honouring
+        /// KHR_node_hoverability (the first hoverable node along the ray), and
+        /// calls this when it may have changed (pointer or camera moved, the
+        /// scene changed); calls with the same node do nothing. Fires
+        /// event/onHoverOut for the subtrees the pointer left, then
+        /// event/onHoverIn for those it entered (each from the hovered node up,
+        /// stopping below the lowest common ancestor). Returns whether any
+        /// handler ran.
+        bool hover(int64_t node, int32_t controllerIndex = 0);
+        /// Whether the graph plays an animation or interpolates a variable or
+        /// property now (the application keeps drawing frames while it does).
+        bool animating() const;
+        /// Whether the graph has event/onHoverIn or event/onHoverOut handlers
+        /// (the application need not pick on pointer moves otherwise).
+        bool usesHover() const;
         /// event/receive: a custom event from the application.
         void receive(int64_t eventIndex, const std::map<std::string, InteractivityRuntimeValue> &values);
 
