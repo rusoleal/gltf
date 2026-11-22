@@ -479,7 +479,7 @@ struct InteractivityRuntime::Impl
             "math/slerp", "math/quatConjugate", "math/quatMul", "math/quatAngleBetween", "math/quatFromAxisAngle",
             "math/quatToAxisAngle", "math/quatFromDirections", "math/quatFromUpForward", "math/quatFromAngles",
             "math/quatSlerp", "math/not", "math/and", "math/or", "math/xor", "math/asr", "math/lsl", "math/clz",
-            "math/ctz", "math/popcnt",
+            "math/ctz", "math/popcnt", "math/rgbToOkLCh", "math/rgbFromOkLCh",
             // other pure operations
             "ref/eq", "type/boolToInt", "type/boolToFloat", "type/intToBool", "type/intToFloat",
             "type/floatToBool", "type/floatToInt", "variable/get", "pointer/get",
@@ -1162,6 +1162,36 @@ struct InteractivityRuntime::Impl
                                   sc.f[2] * 2 * (x * z + y * w), sc.f[2] * 2 * (y * z - x * w), sc.f[2] * (1 - 2 * (x * x + y * y)), 0,
                                   t.f[0], t.f[1], t.f[2], 1};
             set(Value::ofFloats(Sig::Float4x4, m));
+            return;
+        }
+        // OkLCh (the specification's matrices, from the original Oklab
+        // document): linear BT.709 RGB, hue in radians; no clamping, NaN and
+        // infinity propagate.
+        if (op == "math/rgbToOkLCh")
+        {
+            const double r = in("r").f[0], g = in("g").f[0], b = in("b").f[0];
+            const double l1 = std::cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+            const double m1 = std::cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+            const double s1 = std::cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+            const double L = 0.2104542553 * l1 + 0.7936177850 * m1 - 0.0040720468 * s1;
+            const double A = 1.9779984951 * l1 - 2.4285922050 * m1 + 0.4505937099 * s1;
+            const double B = 0.0259040371 * l1 + 0.7827717662 * m1 - 0.8086757660 * s1;
+            out["l"] = Value::ofFloat(L);
+            out["c"] = Value::ofFloat(std::sqrt(A * A + B * B));
+            out["h"] = Value::ofFloat(std::atan2(B, A));
+            return;
+        }
+        if (op == "math/rgbFromOkLCh")
+        {
+            const double L = in("l").f[0], C = in("c").f[0], h = in("h").f[0];
+            const double A = C * std::cos(h), B = C * std::sin(h);
+            const double l1 = L + 0.3963377774 * A + 0.2158037573 * B;
+            const double m1 = L - 0.1055613458 * A - 0.0638541728 * B;
+            const double s1 = L - 0.0894841775 * A - 1.2914855480 * B;
+            const double l3 = l1 * l1 * l1, m3 = m1 * m1 * m1, s3 = s1 * s1 * s1;
+            out["r"] = Value::ofFloat(4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3);
+            out["g"] = Value::ofFloat(-1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3);
+            out["b"] = Value::ofFloat(-0.0041960863 * l3 - 0.7034186147 * m3 + 1.7076147010 * s3);
             return;
         }
         if (op == "math/matDecompose")

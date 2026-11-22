@@ -649,3 +649,40 @@ TEST(InteractivityRuntime, PointerGetAnswersTheAssetStructure)
     EXPECT_FALSE(host.properties["/extras/mesh"].b);
     EXPECT_EQ(host.properties["/extras/child"].ref.index, 1);
 }
+
+TEST(InteractivityRuntime, OkLChConvertsLinearRgbBothWays)
+{
+    // Pure red: OkLCh (0.628, 0.258, 0.5102 rad), and back to (1, 0, 0).
+    auto set = [](const char *name, int node, const char *socket) {
+        return std::string(R"({"declaration": 4, "configuration": {"pointer": {"value": ["/extras/)") + name +
+               R"("]}, "type": {"value": [2]}}, "values": {"value": {"node": )" + std::to_string(node) +
+               R"(, "socket": ")" + socket + R"("}}})";
+    };
+    auto asset = withGraph(std::string("{") + kTypes + R"(,
+        "declarations": [{"op": "event/onStart"}, {"op": "flow/sequence"}, {"op": "math/rgbToOkLCh"},
+                         {"op": "math/rgbFromOkLCh"}, {"op": "pointer/set"}],
+        "nodes": [
+          {"declaration": 0, "flows": {"out": {"node": 1}}},
+          {"declaration": 1, "flows": {"a": {"node": 4}, "b": {"node": 5}, "c": {"node": 6}, "d": {"node": 7},
+                                       "e": {"node": 8}, "f": {"node": 9}}},
+          {"declaration": 2, "values": {"r": {"type": 2, "value": [1]}, "g": {"type": 2, "value": [0]},
+                                        "b": {"type": 2, "value": [0]}}},
+          {"declaration": 3, "values": {"l": {"node": 2, "socket": "l"}, "c": {"node": 2, "socket": "c"},
+                                        "h": {"node": 2, "socket": "h"}}},
+          )" + set("l", 2, "l") + "," + set("c", 2, "c") + "," + set("h", 2, "h") + "," + set("r", 3, "r") + "," +
+                               set("g", 3, "g") + "," + set("b", 3, "b") + "]}");
+    ASSERT_NE(asset, nullptr);
+    ASSERT_TRUE(asset->khrInteractivity && asset->khrInteractivity->valid) << asset->khrInteractivity->error;
+    FakeHost host;
+    InteractivityRuntime runtime(*asset, host);
+    ASSERT_TRUE(runtime.valid());
+    EXPECT_TRUE(runtime.unsupportedOperations().empty());
+    runtime.start();
+    EXPECT_TRUE(runtime.errors().empty());
+    EXPECT_NEAR(host.properties["/extras/l"].f[0], 0.62796, 1e-4);
+    EXPECT_NEAR(host.properties["/extras/c"].f[0], 0.25768, 1e-4);
+    EXPECT_NEAR(host.properties["/extras/h"].f[0], 0.51023, 1e-4); // 29.234 degrees
+    EXPECT_NEAR(host.properties["/extras/r"].f[0], 1.0, 1e-6);
+    EXPECT_NEAR(host.properties["/extras/g"].f[0], 0.0, 1e-6);
+    EXPECT_NEAR(host.properties["/extras/b"].f[0], 0.0, 1e-6);
+}
