@@ -1445,6 +1445,24 @@ struct InteractivityRuntime::Impl
         }
     }
 
+    // The number of objects in a top-level glTF array (0 when unknown).
+    int64_t collectionSize(const std::string &name) const
+    {
+        auto size = [](const auto &array) -> int64_t { return array ? static_cast<int64_t>(array->size()) : 0; };
+        if (name == "nodes") return size(asset.nodes);
+        if (name == "meshes") return size(asset.meshes);
+        if (name == "materials") return size(asset.materials);
+        if (name == "animations") return size(asset.animations);
+        if (name == "cameras") return size(asset.cameras);
+        if (name == "skins") return size(asset.skins);
+        if (name == "textures") return size(asset.textures);
+        if (name == "images") return size(asset.images);
+        if (name == "samplers") return size(asset.samplers);
+        if (name == "scenes") return size(asset.scenes);
+        if (name == "accessors") return size(asset.accessors);
+        return 0;
+    }
+
     // A ref to a glTF animation: its index, or -1.
     int64_t animationIndex(const Value &v) const
     {
@@ -1633,6 +1651,16 @@ struct InteractivityRuntime::Impl
                                   : nullptr;
                 if (!f || sig != Sig::Float) return false;
                 v = Value::ofFloat(*f);
+                return true;
+            }
+        }
+        // A glTF object itself ("/animations/1" as a ref).
+        if (sig == Sig::Ref)
+        {
+            const Ref r = parseObjectRef(pointer);
+            if (r.kind == Ref::Kind::Object && r.index < collectionSize(r.collection))
+            {
+                v = Value::ofRef(r);
                 return true;
             }
         }

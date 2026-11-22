@@ -567,3 +567,41 @@ TEST(InteractivityRuntime, HoverInAndOutStopBelowTheCommonAncestor)
     EXPECT_FALSE(runtime.hover(-1)); // node 2 has no onHoverOut
     EXPECT_EQ(host.logs, (std::vector<std::string>{"in /nodes/1", "out /nodes/0", "in2"}));
 }
+
+TEST(InteractivityRuntime, GhostPlaysItsAnimationsOnHover)
+{
+    // Hovering the ghost plays "scared" (animation 0) to its end; leaving it
+    // stops that and plays "scared-reversed" (1). The graph reads both through
+    // pointer/get "/animations/[index]" (a ref) and their maxTime.
+    const fs::path ghost = fs::path("interactivity-assets") / "Models" / "Ghost" / "glTF-Binary" / "ghost_v2.glb";
+    if (!fs::exists(ghost)) GTEST_SKIP() << "no " << ghost.string() << " (launch_test.sh clones the assets)";
+    std::ifstream f(ghost, std::ios::binary);
+    std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    auto asset = GLTF::loadGLB(bytes.data(), bytes.size());
+    ASSERT_NE(asset, nullptr);
+    ASSERT_TRUE(asset->khrInteractivity && asset->khrInteractivity->valid);
+
+    FakeHost host;
+    InteractivityRuntime runtime(*asset, host);
+    ASSERT_TRUE(runtime.valid());
+    EXPECT_TRUE(runtime.unsupportedOperations().empty()) << runtime.unsupportedOperations().front();
+    EXPECT_TRUE(runtime.usesHover());
+    runtime.start();
+    runtime.tick(0.0);
+    EXPECT_TRUE(host.applied.empty()); // nothing plays by itself
+
+    EXPECT_TRUE(runtime.hover(4));
+    EXPECT_TRUE(runtime.animating());
+    runtime.tick(0.1);
+    ASSERT_FALSE(host.applied.empty());
+    EXPECT_EQ(host.applied.back().first, 0);
+    EXPECT_NEAR(host.applied.back().second, 0.1, 1e-9);
+    for (int i = 0; i < 100; ++i) runtime.tick(0.1); // past its end
+    EXPECT_FALSE(runtime.animating());
+    EXPECT_EQ(host.stopped, (std::vector<int64_t>{0}));
+
+    EXPECT_TRUE(runtime.hover(-1));
+    runtime.tick(0.1);
+    EXPECT_EQ(host.applied.back().first, 1);
+    EXPECT_TRUE(runtime.errors().empty());
+}
