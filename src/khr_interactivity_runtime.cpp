@@ -16,6 +16,7 @@
 #include <bit>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <limits>
 #include <random>
 #include <set>
@@ -165,6 +166,20 @@ namespace
         return out.str();
     }
 
+    // An operation name compared with literals: lengths first, known at
+    // compile time (the hot path compares one name with dozens of literals).
+    struct OpName
+    {
+        const std::string &s;
+        template <size_t N> bool operator==(const char (&literal)[N]) const
+        {
+            return s.size() == N - 1 && std::memcmp(s.data(), literal, N - 1) == 0;
+        }
+        template <size_t N> bool operator!=(const char (&literal)[N]) const { return !(*this == literal); }
+        size_t rfind(const char *prefix, size_t pos) const { return s.rfind(prefix, pos); }
+        const std::string &str() const { return s; }
+    };
+
     // Operations with flow sockets: their outputs are internal state.
     bool isFlowOperation(const std::string &op)
     {
@@ -242,6 +257,29 @@ double InteractivityHost::random()
 
 // ---- runtime -------------------------------------------------------------------
 
+namespace
+{
+    // A pure node's outputs: one to three, so a flat list (its storage is
+    // reused from one computation to the next).
+    struct Outputs
+    {
+        std::vector<std::pair<std::string, Value>> v;
+        Value &operator[](const std::string &k)
+        {
+            for (auto &p : v)
+                if (p.first == k) return p.second;
+            v.emplace_back(k, Value{});
+            return v.back().second;
+        }
+        const Value *find(const std::string &k) const
+        {
+            for (const auto &p : v)
+                if (p.first == k) return &p.second;
+            return nullptr;
+        }
+    };
+} // namespace
+
 struct InteractivityRuntime::Impl
 {
     const GLTF &asset;
@@ -263,7 +301,22 @@ struct InteractivityRuntime::Impl
     };
     std::vector<NodeState> state;
     std::vector<Value> variables;
-    std::unordered_map<int64_t, std::map<std::string, Value>> pureCache;
+    // Pure nodes' outputs, valid while pureGen[node] == generation (a flow
+    // node running starts a new generation).
+    std::vector<Outputs> pureOut;
+    std::vector<std::vector<std::string>> flowOutputIds; // flowOutputs()' cache
+    // Inline input values, converted once.
+    std::unordered_map<const InteractivityNodeValue *, Value> literals;
+    // variable/get's variable and variable/set's (valid, distinct) ones.
+    std::vector<int32_t> getVariable;
+    std::vector<std::vector<int32_t>> setVariables;
+    std::vector<uint32_t> pureGen;
+    // computeWithDependencies()'s traversal.
+    std::vector<int64_t> scratchNeeded, scratchStack;
+    std::vector<uint32_t> seen;
+    uint32_t seenGeneration = 0;
+    bool computing = false;
+    uint32_t generation = 1;
 
     struct Delay
     {
@@ -360,6 +413,10 @@ struct InteractivityRuntime::Impl
         supported.resize(n);
         pointers.resize(n);
         state.resize(n);
+        pureOut.resize(n);
+        flowOutputIds.resize(n);
+        pureGen.assign(n, 0);
+        seen.assign(n, 0);
         std::set<std::string> missing;
         for (size_t i = 0; i < n; ++i)
         {
@@ -380,6 +437,23 @@ struct InteractivityRuntime::Impl
         unsupported.assign(missing.begin(), missing.end());
 
         for (const auto &v : graph->variables) variables.push_back(literal(v.type, v.value));
+        getVariable.assign(n, -1);
+        setVariables.resize(n);
+        for (size_t i = 0; i < n; ++i)
+        {
+            for (const auto &[id, value] : graph->nodes[i].values)
+                if (!value.isLinked()) literals.emplace(&value, literal(value.type, value.value));
+            const auto node = static_cast<int64_t>(i);
+            int32_t v = -1;
+            if (ops[i] == "variable/get" && configInt(node, "variable", v) && v >= 0 && static_cast<size_t>(v) < variables.size())
+                getVariable[i] = v;
+            std::vector<int32_t> vars;
+            if (ops[i] == "variable/set" && configInts(node, "variables", vars))
+                for (const int32_t x : vars)
+                    if (x >= 0 && static_cast<size_t>(x) < variables.size() &&
+                        std::find(setVariables[i].begin(), setVariables[i].end(), x) == setVariables[i].end())
+                        setVariables[i].push_back(x);
+        }
         initAnimations();
         for (size_t i = 0; i < n; ++i) resetState(static_cast<int64_t>(i));
     }
@@ -559,23 +633,35 @@ struct InteractivityRuntime::Impl
     }
 
     // Output flow socket ids, in the specification's socket order.
-    std::vector<std::string> flowOutputs(int64_t node) const
+    const std::vector<std::string> &flowOutputs(int64_t node)
     {
-        std::vector<std::string> ids;
-        for (const auto &[id, flow] : graph->nodes[static_cast<size_t>(node)].flows) ids.push_back(id);
-        std::sort(ids.begin(), ids.end());
+        auto &ids = flowOutputIds[static_cast<size_t>(node)];
+        if (ids.empty())
+        {
+            for (const auto &[id, flow] : graph->nodes[static_cast<size_t>(node)].flows) ids.push_back(id);
+            std::sort(ids.begin(), ids.end());
+        }
         return ids;
     }
 
     // ---- evaluation ----------------------------------------------------------------
 
-    Value input(int64_t node, const std::string &socket)
+    // A float default (NaN), for sockets that aren't there.
+    static const Value &missing()
+    {
+        static const Value v = Value::defaultOf(Sig::Float);
+        return v;
+    }
+
+    // The value an input socket reads: valid until the next flow node runs.
+    const Value &input(int64_t node, const std::string &socket)
     {
         const auto &values = graph->nodes[static_cast<size_t>(node)].values;
         const auto it = values.find(socket);
-        if (it == values.end()) return Value::defaultOf(Sig::Float);
+        if (it == values.end()) return missing();
         if (it->second.isLinked()) return output(it->second.node, it->second.socket);
-        return literal(it->second.type, it->second.value);
+        const auto cached = literals.find(&it->second); // all inline values are there
+        return cached != literals.end() ? cached->second : missing();
     }
 
     bool hasInput(int64_t node, const std::string &socket) const
@@ -584,24 +670,18 @@ struct InteractivityRuntime::Impl
         return values.find(socket) != values.end();
     }
 
-    Value output(int64_t node, const std::string &socket)
+    const Value &output(int64_t node, const std::string &socket)
     {
-        if (node < 0 || static_cast<size_t>(node) >= state.size()) return Value::defaultOf(Sig::Float);
+        if (node < 0 || static_cast<size_t>(node) >= state.size()) return missing();
         if (flowNode[static_cast<size_t>(node)] || !supported[static_cast<size_t>(node)])
         {
             const auto &o = state[static_cast<size_t>(node)].outputs;
             const auto it = o.find(socket);
-            return it != o.end() ? it->second : Value::defaultOf(Sig::Float);
+            return it != o.end() ? it->second : missing();
         }
-        auto cached = pureCache.find(node);
-        if (cached == pureCache.end())
-        {
-            computeWithDependencies(node);
-            cached = pureCache.find(node);
-            if (cached == pureCache.end()) return Value::defaultOf(Sig::Float);
-        }
-        const auto it = cached->second.find(socket);
-        return it != cached->second.end() ? it->second : Value::defaultOf(Sig::Float);
+        if (pureGen[static_cast<size_t>(node)] != generation) computeWithDependencies(node);
+        const Value *v = pureOut[static_cast<size_t>(node)].find(socket);
+        return v ? *v : missing();
     }
 
     // Computes the pure node `node` and the uncached pure nodes it reads,
@@ -609,9 +689,16 @@ struct InteractivityRuntime::Impl
     // ascending node order every input is computed before it's read.
     void computeWithDependencies(int64_t node)
     {
-        std::vector<int64_t> needed;
-        std::vector<int64_t> stack{node};
-        std::unordered_set<int64_t> seen{node};
+        // Scratch storage reused across calls (a nested call, from a value
+        // the traversal didn't reach, uses its own).
+        std::vector<int64_t> nestedNeeded, nestedStack;
+        const bool nested = computing;
+        auto &needed = nested ? nestedNeeded : scratchNeeded;
+        auto &stack = nested ? nestedStack : scratchStack;
+        needed.clear();
+        stack.assign(1, node);
+        const uint32_t mark = ++seenGeneration;
+        seen[static_cast<size_t>(node)] = mark;
         while (!stack.empty())
         {
             const int64_t n = stack.back();
@@ -620,16 +707,22 @@ struct InteractivityRuntime::Impl
             for (const auto &[id, v] : graph->nodes[static_cast<size_t>(n)].values)
             {
                 const int64_t dep = v.node;
-                if (dep < 0 || static_cast<size_t>(dep) >= state.size() || seen.count(dep)) continue;
+                if (dep < 0 || static_cast<size_t>(dep) >= state.size() || seen[static_cast<size_t>(dep)] == mark) continue;
                 if (flowNode[static_cast<size_t>(dep)] || !supported[static_cast<size_t>(dep)]) continue;
-                if (pureCache.count(dep)) continue;
-                seen.insert(dep);
+                if (pureGen[static_cast<size_t>(dep)] == generation) continue;
+                seen[static_cast<size_t>(dep)] = mark;
                 stack.push_back(dep);
             }
         }
         std::sort(needed.begin(), needed.end());
+        computing = true;
         for (const int64_t n : needed)
-            if (!pureCache.count(n)) pureCache.emplace(n, computePure(n));
+            if (pureGen[static_cast<size_t>(n)] != generation)
+            {
+                computePure(n, pureOut[static_cast<size_t>(n)]);
+                pureGen[static_cast<size_t>(n)] = generation;
+            }
+        computing = nested;
     }
 
     // ---- pure operations ---------------------------------------------------------------
@@ -819,27 +912,26 @@ struct InteractivityRuntime::Impl
         return true;
     }
 
-    std::map<std::string, Value> computePure(int64_t node)
+    void computePure(int64_t node, Outputs &out)
     {
-        std::map<std::string, Value> out;
-        const std::string &op = ops[static_cast<size_t>(node)];
-        auto in = [&](const char *s) { return input(node, s); };
+        out.v.clear();
+        const OpName op{ops[static_cast<size_t>(node)]};
+        auto in = [&](const char *s) -> const Value & { return input(node, s); };
         auto set = [&](const Value &v) { out["value"] = v; };
 
         // constants
-        if (op == "math/E") { set(Value::ofFloat(2.718281828459045)); return out; }
-        if (op == "math/Pi") { set(Value::ofFloat(kPi)); return out; }
-        if (op == "math/Tau") { set(Value::ofFloat(2 * kPi)); return out; }
-        if (op == "math/Inf") { set(Value::ofFloat(std::numeric_limits<double>::infinity())); return out; }
-        if (op == "math/NaN") { set(Value::ofFloat(kNaN)); return out; }
-        if (op == "math/random") { set(Value::ofFloat(host.random())); return out; }
+        if (op == "math/E") { set(Value::ofFloat(2.718281828459045)); return; }
+        if (op == "math/Pi") { set(Value::ofFloat(kPi)); return; }
+        if (op == "math/Tau") { set(Value::ofFloat(2 * kPi)); return; }
+        if (op == "math/Inf") { set(Value::ofFloat(std::numeric_limits<double>::infinity())); return; }
+        if (op == "math/NaN") { set(Value::ofFloat(kNaN)); return; }
+        if (op == "math/random") { set(Value::ofFloat(host.random())); return; }
 
         if (op == "variable/get")
         {
-            int32_t v = -1;
-            if (configInt(node, "variable", v) && v >= 0 && static_cast<size_t>(v) < variables.size())
-                set(variables[static_cast<size_t>(v)]);
-            return out;
+            const int32_t v = getVariable[static_cast<size_t>(node)];
+            if (v >= 0) set(variables[static_cast<size_t>(v)]);
+            return;
         }
         if (op == "pointer/get")
         {
@@ -853,12 +945,12 @@ struct InteractivityRuntime::Impl
             if (!ok) v = Value::defaultOf(sig);
             out["value"] = v;
             out["isValid"] = Value::ofBool(ok);
-            return out;
+            return;
         }
         if (op == "math/select")
         {
             set(in("condition").b ? in("a") : in("b"));
-            return out;
+            return;
         }
         if (op == "math/switch")
         {
@@ -867,20 +959,20 @@ struct InteractivityRuntime::Impl
             if (!configInts(node, "cases", cases)) cases.clear();
             if (std::find(cases.begin(), cases.end(), sel) != cases.end()) set(in(std::to_string(sel).c_str()));
             else set(in("default"));
-            return out;
+            return;
         }
-        if (op == "ref/eq") { set(Value::ofBool(in("a").ref == in("b").ref)); return out; }
+        if (op == "ref/eq") { set(Value::ofBool(in("a").ref == in("b").ref)); return; }
 
         // type conversions
-        if (op == "type/boolToInt") { set(Value::ofInt(in("a").b ? 1 : 0)); return out; }
-        if (op == "type/boolToFloat") { set(Value::ofFloat(in("a").b ? 1.0 : 0.0)); return out; }
-        if (op == "type/intToBool") { set(Value::ofBool(in("a").i != 0)); return out; }
-        if (op == "type/intToFloat") { set(Value::ofFloat(static_cast<double>(in("a").i))); return out; }
+        if (op == "type/boolToInt") { set(Value::ofInt(in("a").b ? 1 : 0)); return; }
+        if (op == "type/boolToFloat") { set(Value::ofFloat(in("a").b ? 1.0 : 0.0)); return; }
+        if (op == "type/intToBool") { set(Value::ofBool(in("a").i != 0)); return; }
+        if (op == "type/intToFloat") { set(Value::ofFloat(static_cast<double>(in("a").i))); return; }
         if (op == "type/floatToBool")
         {
             const double a = in("a").f[0];
             set(Value::ofBool(!(a == 0.0 || std::isnan(a))));
-            return out;
+            return;
         }
         if (op == "type/floatToInt")
         {
@@ -889,7 +981,7 @@ struct InteractivityRuntime::Impl
             int32_t r = 0;
             if (std::isfinite(a)) r = wrap(static_cast<int64_t>(std::fmod(std::trunc(a), 4294967296.0)));
             set(Value::ofInt(r));
-            return out;
+            return;
         }
 
         // swizzles
@@ -909,13 +1001,13 @@ struct InteractivityRuntime::Impl
                 v.f[k] = input(node, id).f[0];
             }
             set(v);
-            return out;
+            return;
         }
         if (op.rfind("math/extract", 0) == 0)
         {
             const Value a = in("a");
             for (int k = 0; k < Value::componentCount(a.type); ++k) out[std::to_string(k)] = Value::ofFloat(a.f[k]);
-            return out;
+            return;
         }
 
         // integer / boolean bitwise
@@ -923,7 +1015,7 @@ struct InteractivityRuntime::Impl
         {
             const Value a = in("a");
             set(a.type == Sig::Bool ? Value::ofBool(!a.b) : Value::ofInt(~a.i));
-            return out;
+            return;
         }
         if (op == "math/and" || op == "math/or" || op == "math/xor")
         {
@@ -932,14 +1024,14 @@ struct InteractivityRuntime::Impl
                 set(Value::ofBool(op == "math/and" ? (a.b && b.b) : op == "math/or" ? (a.b || b.b) : (a.b != b.b)));
             else
                 set(Value::ofInt(op == "math/and" ? (a.i & b.i) : op == "math/or" ? (a.i | b.i) : (a.i ^ b.i)));
-            return out;
+            return;
         }
         if (op == "math/asr" || op == "math/lsl")
         {
             const int32_t a = in("a").i;
             const uint32_t s = static_cast<uint32_t>(in("b").i) & 31u;
             set(Value::ofInt(op == "math/asr" ? (a >> s) : wrap(static_cast<int64_t>(static_cast<uint32_t>(a) << s))));
-            return out;
+            return;
         }
         if (op == "math/clz" || op == "math/ctz" || op == "math/popcnt")
         {
@@ -947,7 +1039,7 @@ struct InteractivityRuntime::Impl
             set(Value::ofInt(op == "math/clz"   ? std::countl_zero(a)
                              : op == "math/ctz" ? std::countr_zero(a)
                                                 : std::popcount(a)));
-            return out;
+            return;
         }
 
         // comparisons
@@ -960,7 +1052,7 @@ struct InteractivityRuntime::Impl
             else
                 for (int k = 0; k < Value::componentCount(a.type); ++k) r = r && a.f[k] == b.f[k];
             set(Value::ofBool(r));
-            return out;
+            return;
         }
         if (op == "math/lt" || op == "math/le" || op == "math/gt" || op == "math/ge")
         {
@@ -974,10 +1066,10 @@ struct InteractivityRuntime::Impl
                 r = op == "math/lt" ? x < y : op == "math/le" ? x <= y : op == "math/gt" ? x > y : x >= y;
             }
             set(Value::ofBool(r));
-            return out;
+            return;
         }
-        if (op == "math/isNaN") { set(Value::ofBool(std::isnan(in("a").f[0]))); return out; }
-        if (op == "math/isInf") { set(Value::ofBool(std::isinf(in("a").f[0]))); return out; }
+        if (op == "math/isNaN") { set(Value::ofBool(std::isnan(in("a").f[0]))); return; }
+        if (op == "math/isInf") { set(Value::ofBool(std::isinf(in("a").f[0]))); return; }
 
         // vectors and matrices
         if (op == "math/length" || op == "math/normalize" || op == "math/dot")
@@ -990,18 +1082,18 @@ struct InteractivityRuntime::Impl
                 double s = 0;
                 for (int k = 0; k < n; ++k) s += a.f[k] * b.f[k];
                 set(Value::ofFloat(s));
-                return out;
+                return;
             }
             double len = 0;
             for (int k = 0; k < n; ++k) len += a.f[k] * a.f[k];
             len = std::sqrt(len);
-            if (op == "math/length") { set(Value::ofFloat(len)); return out; }
+            if (op == "math/length") { set(Value::ofFloat(len)); return; }
             const bool ok = len > 0 && std::isfinite(len);
             Value v = a;
             for (int k = 0; k < n; ++k) v.f[k] = ok ? a.f[k] / len : 0.0;
             set(v);
             out["isValid"] = Value::ofBool(ok);
-            return out;
+            return;
         }
         if (op == "math/cross")
         {
@@ -1009,7 +1101,7 @@ struct InteractivityRuntime::Impl
             const double r[3] = {a.f[1] * b.f[2] - a.f[2] * b.f[1], a.f[2] * b.f[0] - a.f[0] * b.f[2],
                                  a.f[0] * b.f[1] - a.f[1] * b.f[0]};
             set(Value::ofFloats(Sig::Float3, r));
-            return out;
+            return;
         }
         if (op == "math/rotate2D")
         {
@@ -1017,7 +1109,7 @@ struct InteractivityRuntime::Impl
             const double t = in("angle").f[0];
             const double r[2] = {a.f[0] * std::cos(t) - a.f[1] * std::sin(t), a.f[0] * std::sin(t) + a.f[1] * std::cos(t)};
             set(Value::ofFloats(Sig::Float2, r));
-            return out;
+            return;
         }
         if (op == "math/transform")
         {
@@ -1031,7 +1123,7 @@ struct InteractivityRuntime::Impl
                 v.f[row] = s;
             }
             set(v);
-            return out;
+            return;
         }
         if (op == "math/transpose")
         {
@@ -1041,10 +1133,10 @@ struct InteractivityRuntime::Impl
             for (int c = 0; c < n; ++c)
                 for (int r = 0; r < n; ++r) v.f[c * n + r] = a.f[r * n + c];
             set(v);
-            return out;
+            return;
         }
-        if (op == "math/determinant") { set(Value::ofFloat(determinant(in("a")))); return out; }
-        if (op == "math/matMul") { set(matMul(in("a"), in("b"))); return out; }
+        if (op == "math/determinant") { set(Value::ofFloat(determinant(in("a")))); return; }
+        if (op == "math/matMul") { set(matMul(in("a"), in("b"))); return; }
 
         if (op == "math/inverse")
         {
@@ -1059,7 +1151,7 @@ struct InteractivityRuntime::Impl
             }
             set(v);
             out["isValid"] = Value::ofBool(ok);
-            return out;
+            return;
         }
         if (op == "math/matCompose")
         {
@@ -1070,7 +1162,7 @@ struct InteractivityRuntime::Impl
                                   sc.f[2] * 2 * (x * z + y * w), sc.f[2] * 2 * (y * z - x * w), sc.f[2] * (1 - 2 * (x * x + y * y)), 0,
                                   t.f[0], t.f[1], t.f[2], 1};
             set(Value::ofFloats(Sig::Float4x4, m));
-            return out;
+            return;
         }
         if (op == "math/matDecompose")
         {
@@ -1087,7 +1179,7 @@ struct InteractivityRuntime::Impl
             {
                 out["scale"] = Value::ofFloats(Sig::Float3, sc);
                 out["rotation"] = Value::ofFloats(Sig::Float4, identity);
-                return out;
+                return;
             }
             double b[3][3];
             for (int r = 0; r < 3; ++r)
@@ -1099,7 +1191,7 @@ struct InteractivityRuntime::Impl
                 // Shear: not decomposable; NaN rotation and scale.
                 out["scale"] = Value::defaultOf(Sig::Float3);
                 out["rotation"] = Value::defaultOf(Sig::Float4);
-                return out;
+                return;
             }
             if (det < 0)
             {
@@ -1109,7 +1201,7 @@ struct InteractivityRuntime::Impl
             out["scale"] = Value::ofFloats(Sig::Float3, sc);
             const Q q = quatFromMatrix(b);
             out["rotation"] = Value::ofFloats(Sig::Float4, q.data());
-            return out;
+            return;
         }
         if (op == "math/rotate3D")
         {
@@ -1117,7 +1209,7 @@ struct InteractivityRuntime::Impl
             double v[3];
             rotate(a.f.data(), Q{r.f[0], r.f[1], r.f[2], r.f[3]}, v);
             set(Value::ofFloats(Sig::Float3, v));
-            return out;
+            return;
         }
         if (op == "math/slerp")
         {
@@ -1130,7 +1222,7 @@ struct InteractivityRuntime::Impl
             lb = std::sqrt(lb);
             Value v = a;
             const auto lerp = [&] { for (int k = 0; k < n; ++k) v.f[k] = (1 - c) * a.f[k] + c * b.f[k]; };
-            if (la < 1e-9 || lb < 1e-9) { lerp(); set(v); return out; }
+            if (la < 1e-9 || lb < 1e-9) { lerp(); set(v); return; }
             double ah[3] = {}, bh[3] = {};
             for (int k = 0; k < n; ++k) { ah[k] = a.f[k] / la; bh[k] = b.f[k] / lb; }
             const double L = (1 - c) * la + c * lb;
@@ -1141,10 +1233,10 @@ struct InteractivityRuntime::Impl
                 v.f[0] = (ah[0] * std::cos(c * theta) - ah[1] * std::sin(c * theta)) * L;
                 v.f[1] = (ah[0] * std::sin(c * theta) + ah[1] * std::cos(c * theta)) * L;
                 set(v);
-                return out;
+                return;
             }
             const double d = ah[0] * bh[0] + ah[1] * bh[1] + ah[2] * bh[2];
-            if (d > 1 - 1e-9) { lerp(); set(v); return out; }
+            if (d > 1 - 1e-9) { lerp(); set(v); return; }
             std::array<double, 3> r;
             if (d < -1 + 1e-9) r = perpendicular(ah);
             else
@@ -1158,7 +1250,7 @@ struct InteractivityRuntime::Impl
             rotate(ah, q, rotated);
             for (int k = 0; k < 3; ++k) v.f[k] = rotated[k] * L;
             set(v);
-            return out;
+            return;
         }
         if (op.rfind("math/quat", 0) == 0)
         {
@@ -1276,7 +1368,7 @@ struct InteractivityRuntime::Impl
                 const Q r = {a[0] * ka + b[0] * kb, a[1] * ka + b[1] * kb, a[2] * ka + b[2] * kb, a[3] * ka + b[3] * kb};
                 set(Value::ofFloats(Sig::Float4, r.data()));
             }
-            return out;
+            return;
         }
 
         // unary component-wise
@@ -1308,7 +1400,7 @@ struct InteractivityRuntime::Impl
             {"math/sqrt", [](double a) { return std::sqrt(a); }},
             {"math/cbrt", [](double a) { return std::cbrt(a); }},
         };
-        if (const auto it = unary.find(op); it != unary.end()) { set(mapFloat(in("a"), it->second)); return out; }
+        if (const auto it = unary.find(op.str()); it != unary.end()) { set(mapFloat(in("a"), it->second)); return; }
 
         // arithmetic with int overloads
         if (op == "math/abs" || op == "math/sign" || op == "math/neg")
@@ -1325,7 +1417,7 @@ struct InteractivityRuntime::Impl
                 set(mapFloat(a, op == "math/abs" ? static_cast<Unary>([](double v) { return std::fabs(v); })
                                 : op == "math/sign" ? &fsign
                                                     : static_cast<Unary>([](double v) { return -v; })));
-            return out;
+            return;
         }
         if (op == "math/add" || op == "math/sub" || op == "math/mul" || op == "math/div" || op == "math/rem" ||
             op == "math/min" || op == "math/max")
@@ -1343,7 +1435,7 @@ struct InteractivityRuntime::Impl
                 else if (op == "math/min") r = static_cast<int32_t>(std::min(x, y));
                 else r = static_cast<int32_t>(std::max(x, y));
                 set(Value::ofInt(r));
-                return out;
+                return;
             }
             // floatNxN * floatNxN is component-wise (math/matMul is the matrix product).
             if (op == "math/add") set(zipFloat(a, b, [](double x, double y) { return x + y; }));
@@ -1353,10 +1445,10 @@ struct InteractivityRuntime::Impl
             else if (op == "math/rem") set(zipFloat(a, b, &frem));
             else if (op == "math/min") set(zipFloat(a, b, &fmin2));
             else set(zipFloat(a, b, &fmax2));
-            return out;
+            return;
         }
-        if (op == "math/atan2") { set(zipFloat(in("a"), in("b"), [](double y, double x) { return std::atan2(y, x); })); return out; }
-        if (op == "math/pow") { set(zipFloat(in("a"), in("b"), [](double x, double y) { return std::pow(x, y); })); return out; }
+        if (op == "math/atan2") { set(zipFloat(in("a"), in("b"), [](double y, double x) { return std::atan2(y, x); })); return; }
+        if (op == "math/pow") { set(zipFloat(in("a"), in("b"), [](double x, double y) { return std::pow(x, y); })); return; }
         if (op == "math/clamp")
         {
             const Value a = in("a"), b = in("b"), c = in("c");
@@ -1367,12 +1459,12 @@ struct InteractivityRuntime::Impl
             }
             else
                 set(zip3Float(a, b, c, [](double x, double y, double z) { return fmin2(fmax2(x, fmin2(y, z)), fmax2(y, z)); }));
-            return out;
+            return;
         }
         if (op == "math/mix")
         {
             set(zip3Float(in("a"), in("b"), in("c"), [](double x, double y, double t) { return x + t * (y - x); }));
-            return out;
+            return;
         }
         if (op == "math/smoothStep")
         {
@@ -1380,9 +1472,9 @@ struct InteractivityRuntime::Impl
                 const double t = saturate((c - fmin2(x, y)) / std::fabs(y - x));
                 return t * t * (3 - 2 * t);
             }));
-            return out;
+            return;
         }
-        return out; // not implemented: no outputs (type defaults)
+        return; // not implemented: no outputs (type defaults)
     }
 
     // ---- pointers --------------------------------------------------------------------
@@ -1738,7 +1830,7 @@ struct InteractivityRuntime::Impl
         {
             if (++steps > kStepBudget) { abort("more than " + std::to_string(kStepBudget) + " steps"); break; }
             // Pure nodes' outputs are kept until a flow node runs.
-            pureCache.clear();
+            ++generation;
             nextNode = -1;
             if (supported[static_cast<size_t>(node)]) run(node, socket);
             node = nextNode;
@@ -1750,13 +1842,13 @@ struct InteractivityRuntime::Impl
 
     void run(int64_t node, const std::string &socket)
     {
-        const std::string &op = ops[static_cast<size_t>(node)];
+        const OpName op{ops[static_cast<size_t>(node)]};
         auto &s = state[static_cast<size_t>(node)];
         auto &o = s.outputs;
 
         if (op == "flow/sequence")
         {
-            const auto ids = flowOutputs(node);
+            const auto &ids = flowOutputs(node);
             for (size_t k = 0; k < ids.size(); ++k)
                 if (k + 1 < ids.size()) fire(node, ids[k]);
                 else tailFire(node, ids[k]);
@@ -1805,7 +1897,7 @@ struct InteractivityRuntime::Impl
         }
         else if (op == "flow/multiGate")
         {
-            const auto outputs = flowOutputs(node);
+            const auto &outputs = flowOutputs(node);
             if (socket == "reset")
             {
                 o["lastIndex"] = Value::ofInt(-1);
@@ -1911,13 +2003,11 @@ struct InteractivityRuntime::Impl
         }
         else if (op == "variable/set")
         {
-            std::vector<int32_t> vars;
-            configInts(node, "variables", vars);
+            const auto &vars = setVariables[static_cast<size_t>(node)];
+            // All values are read before any variable changes.
             std::vector<std::pair<int32_t, Value>> values;
-            std::set<int32_t> seen;
-            for (const int32_t v : vars)
-                if (v >= 0 && static_cast<size_t>(v) < variables.size() && seen.insert(v).second)
-                    values.emplace_back(v, input(node, std::to_string(v)));
+            values.reserve(vars.size());
+            for (const int32_t v : vars) values.emplace_back(v, input(node, std::to_string(v)));
             for (auto &[v, value] : values)
             {
                 variables[static_cast<size_t>(v)] = value;

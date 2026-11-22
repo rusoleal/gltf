@@ -13,6 +13,9 @@
   - Each `tick()` advances animations, then interpolations, then delays, then runs event/onTick.
   - Tests: `GhostPlaysItsAnimationsOnHover` (the Ghost showcase model end to end), `VariableInterpolateEasesToTheTargetThenFiresDone`, `PointerInterpolateSlerpsRotations`, `AnimationStartPlaysToItsEndTimeAndWraps`, `AnimationStopAtEndsEarlyWithItsOwnDone`, `HoverInAndOutStopBelowTheCommonAncestor`.
 
+### Changed
+- **The runtime is about 4x faster.** Needle's MiniChess engine thinking took 54 ms per tick natively and now takes 14 ms. Pure node outputs are kept in a flat list per node, invalidated by a generation count instead of clearing a hash map on every step; dependency traversal reuses its storage; inline input values, variable indices and flow output names are prepared once; values are read by reference; and operation names are compared length first, with literal lengths known at compile time.
+
 ## [0.8.0] - 2026-11-21
 
 ### Added
