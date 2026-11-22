@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-22
+
 ### Added
 - **KHR_interactivity runtime: the asset's structure through pointer/get.** The glTF Asset Object Model's read-only pointers are answered from the asset: array sizes (`/nodes.length`, `/nodes/N/children.length`, `/nodes/N/weights.length`, `/meshes/N/primitives.length`, `/scenes/N/nodes.length`, `/skins/N/joints.length`, `/extensions/KHR_lights_punctual/lights.length` and the other top-level arrays; 0 for an array that isn't defined) and references (`/nodes/N/mesh`, `camera`, `skin`, `parent`, `children/[i]`, `/scene`, `/scenes/N/nodes/[i]`, `/meshes/N/primitives/P/material`, `/skins/N/skeleton`, `/skins/N/joints/[i]`). A reference that doesn't exist (a node without a mesh, a root's parent) isn't valid. Khronos' Flocking and PhysicsMath read them. Test `PointerGetAnswersTheAssetStructure`.
 - **`math/rgbToOkLCh` and `math/rgbFromOkLCh`**, the last operations the runtime didn't run: linear BT.709 RGB to OkLCh (hue in radians) and back, with the specification's Oklab matrices, no clamping, NaN and infinity propagated. Every operation of the specification now runs; `unsupportedOperations()` only lists extension operations. Test `OkLChConvertsLinearRgbBothWays`.
