@@ -174,6 +174,14 @@ namespace systems::leal::gltf
         const std::vector<std::string> &unsupportedOperations() const;
         /// Runtime errors so far (budget exceeded, ...), oldest first.
         const std::vector<std::string> &errors() const;
+        /// The graph's variables now, in the order of InteractivityGraph::
+        /// variables (empty when valid() is false).
+        const std::vector<InteractivityRuntimeValue> &variables() const;
+        /// How many handlers of each event operation have run so far
+        /// (event/onStart, onTick, onSelect, onHoverIn, onHoverOut, receive),
+        /// by operation name. Only operations the graph uses appear, with 0
+        /// until they first run.
+        const std::map<std::string, uint64_t> &eventCounts() const;
 
     private:
         struct Impl;
