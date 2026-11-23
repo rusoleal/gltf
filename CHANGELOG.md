@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-23
+
 ### Added
 - **`InteractivityRuntime::variables()` and `eventCounts()`**, for showing a graph's live state: the variables' current values, in the graph's order, and how many handlers of each event operation (event/onStart, onTick, onSelect, onHoverIn, onHoverOut, receive) have run.
 
