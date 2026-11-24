@@ -32,7 +32,7 @@ include(dependencies/draco.cmake)
 include(dependencies/meshoptimizer.cmake)
 
 add_library(${PROJECT_NAME} SHARED
-    src/gltf.cpp src/base64.cpp src/utils.cpp src/khr_interactivity.cpp src/khr_interactivity_ops.cpp src/khr_interactivity_runtime.cpp
+    src/gltf.cpp src/base64.cpp src/utils.cpp src/writer.cpp src/khr_interactivity.cpp src/khr_interactivity_ops.cpp src/khr_interactivity_runtime.cpp
 )
 set_target_properties(${PROJECT_NAME} PROPERTIES
     WINDOWS_EXPORT_ALL_SYMBOLS ON
@@ -184,8 +184,11 @@ if (GLTF_BUILD_TEST)
         test/gltf21.cpp
         test/interactivity_conformance.cpp
         test/interactivity_runtime.cpp
+        test/writer.cpp
     )
     set_target_properties(${PROJECT_NAME}_test PROPERTIES UNITY_BUILD ON)
+    # Compiled on its own: checks that gltf/writer.hpp is self-contained.
+    set_source_files_properties(test/writer.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
     target_link_libraries(${PROJECT_NAME}_test
         ${PROJECT_NAME}
         gtest
