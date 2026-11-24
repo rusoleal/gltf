@@ -187,6 +187,8 @@ if (GLTF_BUILD_TEST)
         test/writer.cpp
     )
     set_target_properties(${PROJECT_NAME}_test PROPERTIES UNITY_BUILD ON)
+    # Compiled on its own: checks that gltf/writer.hpp is self-contained.
+    set_source_files_properties(test/writer.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
     target_link_libraries(${PROJECT_NAME}_test
         ${PROJECT_NAME}
         gtest

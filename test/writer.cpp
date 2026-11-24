@@ -1,8 +1,8 @@
 // GLTFWriter: assets written as GLB read back with GLTF::loadGLB.
 
-#include <gtest/gtest.h>
-#include <gltf/gltf.hpp>
+// writer.hpp first: it must compile on its own.
 #include <gltf/writer.hpp>
+#include <gtest/gtest.h>
 
 #include <cstring>
 #include <stdexcept>

@@ -1,10 +1,8 @@
 #pragma once
 
-#include <gltf/accessor.hpp>
-#include <gltf/buffer_view.hpp>
-#include <gltf/material.hpp>
-#include <gltf/mesh.hpp>
-#include <gltf/sampler.hpp>
+// The component headers rely on gltf.hpp's declarations (GLTF_REAL_NUMBER_TYPE,
+// standard includes), so include it whole.
+#include <gltf/gltf.hpp>
 
 #include <array>
 #include <cstdint>
