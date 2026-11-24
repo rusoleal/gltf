@@ -1,6 +1,6 @@
 # C++ glTF 2.0 / 2.1 helper library
 
-A c++ package that allows loading .gltf and .glb (glTF binary format) files according to the [glTF 2.0](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html) and [glTF 2.1](https://github.com/KhronosGroup/glTF/blob/main/specification/2.1/README.md) specifications.
+A c++ package that allows loading .gltf and .glb (glTF binary format) files, and writing .glb files, according to the [glTF 2.0](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html) and [glTF 2.1](https://github.com/KhronosGroup/glTF/blob/main/specification/2.1/README.md) specifications.
 
 ## 🚀 Part of the Campello Engine
 
@@ -51,6 +51,27 @@ auto gltf = GLTF::loadGLTF(jsonString, [](const std::string&) {
     });
 });
 ```
+
+### Writing GLB
+
+`GLTFWriter` (`#include <gltf/writer.hpp>`) builds an asset and writes it as GLB 2.0. The `add*` methods return each object's glTF index, so later objects can reference it. References are checked when added, and invalid ones throw.
+
+```cpp
+GLTFWriter writer("my app 1.0");
+WriterPrimitive primitive;
+primitive.attributes["POSITION"] = writer.addPositions(xyz, vertexCount);        // with min / max
+primitive.attributes["COLOR_0"] = writer.addColors(rgb, vertexCount, AccessorType::acVec3);
+primitive.indices = writer.addIndices(indices, indexCount);                       // u16 when they fit
+WriterMaterial material;
+material.roughnessFactor = 0.9;
+primitive.material = writer.addMaterial(material);
+WriterNode node;
+node.mesh = writer.addMesh({"mesh", {primitive}});
+writer.addScene({writer.addNode(node)});
+std::vector<uint8_t> glb = writer.toGLB();
+```
+
+It also writes images in the binary buffer, samplers, textures (`KHR_texture_basisu` optional), unlit materials (`KHR_materials_unlit`), node hierarchies with TRS and `extras`, and multiple scenes.
 
 ### Error handling
 

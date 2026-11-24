@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+- **`GLTFWriter` (`gltf/writer.hpp`): builds an asset and writes it as GLB 2.0.**
+  - Buffer views (one binary buffer, 4-byte aligned) and accessors. Helpers for float attributes, `POSITION` (with the `min` / `max` glTF requires), `COLOR_n` as normalized bytes (RGB padded to a 4-byte stride), and indices (unsigned short when they fit, else unsigned int).
+  - Images stored in the buffer, samplers, textures (optionally `KHR_texture_basisu`), and core PBR materials (optionally `KHR_materials_unlit`).
+  - Meshes, nodes (TRS, children, `extras`), scenes, and `extensionsUsed` / `extensionsRequired`.
+  - References are checked when added. Non-finite numbers and invalid `extras` throw.
+  - Tests write assets and read them back with `loadGLB`.
+
+### Fixed
+- **Images' `mimeType` wasn't read**: the parser looked for a `mime` key, so images in buffer views (GLB textures) loaded with an empty MIME type.
+
 ## [0.11.0] - 2026-11-23
 
 ### Added

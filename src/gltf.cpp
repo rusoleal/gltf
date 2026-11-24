@@ -1213,7 +1213,7 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
 
             std::string name = image.value("name", "");
 
-            std::string mimeType = image.value("mime", "");
+            std::string mimeType = image.value("mimeType", "");
 
             int64_t bufferView = image.value("bufferView", -1);
 

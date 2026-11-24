@@ -45,6 +45,7 @@ cd build && ./gltf_test --gtest_filter=AlphaBlendModeTestGLB.*
 - `GLTF::loadGLTF(const std::string &data, callback)` — parse JSON `.gltf` string with external resource loading
 - `GLTF::loadGLB(uint8_t *data, uint64_t size)` — parse binary `.glb` data
 - `GLTF::getRuntimeInfo(uint64_t sceneIndex)` — get scene runtime metadata
+- `GLTFWriter` (`inc/gltf/writer.hpp`, `src/writer.cpp`) — builds an asset (buffers, accessors, meshes, materials, textures, nodes, scenes) and writes GLB 2.0 (`toGLB()`); JSON through the embedded nlohmann/json
 
 The callback for `loadGLTF` receives a URI and returns `std::future<std::vector<uint8_t>>`:
 ```cpp
