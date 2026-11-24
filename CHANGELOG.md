@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-24
+
 ### Added
 - **`GLTFWriter` (`gltf/writer.hpp`): builds an asset and writes it as GLB 2.0.**
   - Buffer views (one binary buffer, 4-byte aligned) and accessors. Helpers for float attributes, `POSITION` (with the `min` / `max` glTF requires), `COLOR_n` as normalized bytes (RGB padded to a 4-byte stride), and indices (unsigned short when they fit, else unsigned int).
