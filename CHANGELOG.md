@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-11-25
+
 ### Fixed
 - **Web builds are static.** The library was declared `SHARED` everywhere; emsdk 7 builds that as a side module (`libgltf.so`) the page has to fetch and load at runtime, where older releases quietly built a static library. It is now `STATIC` under Emscripten, so it links into the app's own `.wasm`. Native platforms still build a shared library.
 - **Builds with emsdk 7**: draco 1.5.7 doesn't compile against its newer libc++ (`std::back_inserter` without `<iterator>`). draco is now 1.5.9, which does.
