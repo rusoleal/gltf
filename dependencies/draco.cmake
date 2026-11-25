@@ -8,7 +8,7 @@ FetchContent_Declare(
     extern_draco
 
     GIT_REPOSITORY https://github.com/google/draco
-    GIT_TAG        1.5.7
+    GIT_TAG        1.5.9
 )
 
 FetchContent_GetProperties(extern_draco)
