@@ -31,7 +31,16 @@ set(DRACO_BUILD_ENCODER OFF)
 include(dependencies/draco.cmake)
 include(dependencies/meshoptimizer.cmake)
 
-add_library(${PROJECT_NAME} SHARED
+# Web: static, linked into the app's own .wasm. A SHARED library here is a
+# side module the page must fetch and load at runtime (emsdk 7 builds one;
+# older releases quietly built a static library).
+if(EMSCRIPTEN)
+    set(_gltf_library_type STATIC)
+else()
+    set(_gltf_library_type SHARED)
+endif()
+
+add_library(${PROJECT_NAME} ${_gltf_library_type}
     src/gltf.cpp src/base64.cpp src/utils.cpp src/writer.cpp src/khr_interactivity.cpp src/khr_interactivity_ops.cpp src/khr_interactivity_runtime.cpp
 )
 set_target_properties(${PROJECT_NAME} PROPERTIES
