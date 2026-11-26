@@ -7,6 +7,8 @@
  *
  * - Every asset outside Tests/Interactivity/invalid must load, with its graphs valid.
  * - Every asset in Tests/Interactivity/invalid breaks one rule and must be rejected.
+ * - The self-checking tests run and succeed (those that don't need an
+ *   application's object model).
  */
 
 #include <cstdlib>
@@ -14,11 +16,15 @@
 #include <iostream>
 #include <fstream>
 #include <future>
+#include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <gltf/gltf.hpp>
+#include <gltf/extensions/khr_interactivity_runtime.hpp>
+#include "../src/json.hpp" // the test indexes
 
 using namespace systems::leal::gltf;
 namespace fs = std::filesystem;
@@ -132,4 +138,108 @@ TEST(KHRInteractivityConformance, InvalidAssetsRejected)
         }
     }
     EXPECT_EQ(failed, 0u) << failed << " of " << files.size() << " invalid assets accepted:\n" << failures.str();
+}
+
+// ---- the self-checking tests, run ------------------------------------------------
+
+namespace
+{
+    // The glTF Asset Object Model as a map: pointer/set stores, pointer/get
+    // answers what was stored (nothing else). Enough for the tests of the
+    // runtime itself; those that read the asset's own properties (animations,
+    // lights, matrices) need an application's object model.
+    class SelfCheckHost : public InteractivityHost
+    {
+    public:
+        explicit SelfCheckHost(const InteractivityGraph &graph) : graph_(graph) {}
+        std::map<std::string, InteractivityRuntimeValue> properties;
+        std::string result; // "test/onSuccess" or "test/onFailed" once sent
+        std::vector<std::string> logs;
+
+        bool getPointer(const std::string &pointer, InteractivityTypeSignature type, InteractivityRuntimeValue &value) override
+        {
+            const auto it = properties.find(pointer);
+            if (it == properties.end() || it->second.type != type) return false;
+            value = it->second;
+            return true;
+        }
+        bool setPointer(const std::string &pointer, const InteractivityRuntimeValue &value) override
+        {
+            properties[pointer] = value;
+            return true;
+        }
+        void log(const std::string &message) override { logs.push_back(message); }
+        void eventSent(int64_t eventIndex, const std::map<std::string, InteractivityRuntimeValue> &) override
+        {
+            const std::string &id = graph_.events[static_cast<size_t>(eventIndex)].id;
+            if (result.empty() && (id == "test/onSuccess" || id == "test/onFailed")) result = id;
+        }
+
+    private:
+        const InteractivityGraph &graph_;
+    };
+
+    // Cases that read the asset's own properties through pointer/get (or play
+    // its animations): they need an application's object model.
+    const std::set<std::string> kNeedObjectModel = {
+        "Extras/Matrix_Updates",
+        "animation/start",
+        "animation/start_playback_modes",
+        "animation/state",
+        "animation/stop",
+        "animation/stop_and_stopAt_edge_cases",
+        "animation/stopAt",
+        "math/matDecomp-Shear", // /nodes/N/globalMatrix
+        "pointer/activeCamera",
+        "pointer/get_light_type_pointers",
+        "pointer/get_set_morphtargets",
+        "pointer/interpolate",
+        "pointer/set_edge_cases",
+    };
+}
+
+// Khronos' self-checking tests (Tests/Interactivity, test-index.json and
+// mathtests-index.json) send test/onStart, then test/onSuccess or
+// test/onFailed: each must succeed within 20 simulated seconds.
+TEST(KHRInteractivityConformance, SelfCheckingTestsSucceed)
+{
+    const fs::path root = kAssetsRoot / "Tests" / "Interactivity";
+    if (!fs::is_directory(root))
+        GTEST_SKIP() << "No interactivity assets; clone glTF-Test-Assets-Interactivity into build/interactivity-assets.";
+
+    std::ostringstream failures;
+    size_t ran = 0, failed = 0;
+    for (const char *index : {"test-index.json", "mathtests-index.json"})
+    {
+        std::ifstream in(root / index);
+        ASSERT_TRUE(in) << index;
+        const auto entries = nlohmann::json::parse(in);
+        for (const auto &entry : entries)
+        {
+            const auto variant = entry.find("variants");
+            if (variant == entry.end() || !variant->contains("glTF-Binary")) continue;
+            const std::string name = entry.at("name");
+            const auto asset = loadAsset(root / name / "glTF-Binary" / (*variant)["glTF-Binary"].get<std::string>());
+            ASSERT_TRUE(asset && asset->khrInteractivity) << name;
+            const auto &ext = *asset->khrInteractivity;
+            SelfCheckHost host(ext.graphs[ext.graph]);
+            InteractivityRuntime runtime(*asset, host);
+            ASSERT_TRUE(runtime.valid()) << name;
+            runtime.start();
+            for (int t = 0; t < 20 * 60 && host.result.empty(); ++t) runtime.tick(1.0 / 60.0);
+            ++ran;
+            const bool passed = host.result == "test/onSuccess";
+            const bool known = kNeedObjectModel.count(name) != 0;
+            if (passed == known)
+            {
+                ++failed;
+                failures << "  " << name << ": " << (known ? "passes; remove it from kNeedObjectModel" : host.result.empty() ? "no result" : host.result);
+                for (const auto &line : host.logs)
+                    if (line.rfind("ERROR!", 0) == 0) failures << "\n    " << line;
+                failures << "\n";
+            }
+        }
+    }
+    EXPECT_GT(ran, 150u);
+    EXPECT_EQ(failed, 0u) << failures.str();
 }
