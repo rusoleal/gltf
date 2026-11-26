@@ -2159,6 +2159,15 @@ std::shared_ptr<GLTF> GLTF::loadGLTF(const std::string &data)
     toReturn->shapes = shapes;
     toReturn->externalAssets = externalAssets;
     toReturn->thumbnail = assetThumbnail;
+    toReturn->majorVersion = majorVersion;
+    toReturn->minorVersion = minorVersion;
+    auto readNames = [&](const char *key, std::vector<std::string> &list) {
+        if (gltfDef.contains(key) && gltfDef[key].is_array())
+            for (const auto &e : gltfDef[key])
+                if (e.is_string()) list.push_back(e.get<std::string>());
+    };
+    readNames("extensionsUsed", toReturn->extensionsUsed);
+    readNames("extensionsRequired", toReturn->extensionsRequired);
 
     // KHR_interactivity
     if (gltfDef.contains("extensions") && gltfDef["extensions"].is_object() &&

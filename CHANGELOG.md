@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Added
+- **`GLTF::majorVersion`, `minorVersion`, `extensionsUsed` and `extensionsRequired`**: the asset's `asset.version` and its extension lists, as it declares them.
+- **KHR_interactivity runtime: more read-only pointers answered from the asset.** The asset capabilities (`/extensions/KHR_interactivity/asset/majorVersion` and `minorVersion`, and `/extensions/KHR_interactivity/asset/extensions/<name>/enabled`, valid for an extension the asset uses and the library implements), `/materials/N/doubleSided`, and `/scene` read as an int (the Object Model's type; a ref still works).
+- **Test `KHRInteractivityConformance.SelfCheckingTestsSucceed`** runs Khronos' self-checking tests (`test-index.json` and `mathtests-index.json`) against a map-backed object model and expects `test/onSuccess` from each one. The 13 that read the asset's live properties (animations, lights, matrices, morph weights) need an application's object model and are listed in the test.
+
+### Fixed
+KHR_interactivity runtime, found by Khronos' test set:
+- **A loop ran once too often** when its body changed a variable through `variable/set`. A pure node read before the write kept its old value, so `flow/while` saw the old condition. Pure values are now dropped after each flow node as well as before it.
+- **Two handlers of one event saw different refs.** Each handler's `event` output was written just before it ran, so an earlier handler read an empty ref from a later one. All handlers of an occurrence now get their outputs first.
+- **A flow into a socket the operation doesn't have ran the operation.** It now does nothing.
+- **Unsupported operations output NaN floats** whatever their declared socket types. They now output each socket type's default: 0 for an int, false for a bool.
+- **`math/pow`** follows ECMAScript's `Math.pow`, as the test set does: `pow(1, NaN)` and `pow(±1, ±inf)` are NaN, and `pow(NaN, 0)` is 1.
+- **`math/matDecompose` of a sheared matrix gave NaN.** It now gives finite values, as engines do: the columns' lengths as the scale, and a rotation from the normalized columns.
+- **Object refs to lights** (`/extensions/KHR_lights_punctual/lights/5`) weren't parsed, so pointer templates with `{light}` parameters failed.
+- **`/nodes/N/weights.length` of a node without a mesh** was 0. It is now invalid, as the Object Model says.
+
 ## [0.12.1] - 2026-11-25
 
 ### Fixed

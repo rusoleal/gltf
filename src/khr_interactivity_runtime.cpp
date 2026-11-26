@@ -68,13 +68,14 @@ namespace
         return true;
     }
 
-    // "/nodes/3" -> {Object, "nodes", 3}; anything else is null.
+    // "/nodes/3" -> {Object, "nodes", 3}, "/extensions/KHR_lights_punctual/lights/2"
+    // -> {Object, "extensions/KHR_lights_punctual/lights", 2}; anything else is null.
     Ref parseObjectRef(const std::string &s)
     {
         Ref r;
         if (s.size() < 4 || s[0] != '/') return r;
-        const auto slash = s.find('/', 1);
-        if (slash == std::string::npos || slash + 1 >= s.size()) return r;
+        const auto slash = s.rfind('/');
+        if (slash == 0 || slash + 1 >= s.size()) return r;
         const std::string index = s.substr(slash + 1);
         if (index.find_first_not_of("0123456789") != std::string::npos || index.size() > 10) return r;
         r.kind = Ref::Kind::Object;
@@ -179,6 +180,16 @@ namespace
         size_t rfind(const char *prefix, size_t pos) const { return s.rfind(prefix, pos); }
         const std::string &str() const { return s; }
     };
+
+    // Whether the (implemented) operation `op` has the input flow socket `socket`.
+    bool hasInputFlow(const std::string &op, const std::string &socket)
+    {
+        if (op == "flow/waitAll") return true; // "reset" and "0".."inputFlows-1", checked when it runs
+        if (socket == "in") return true;
+        if (socket == "reset") return op == "flow/doN" || op == "flow/multiGate" || op == "flow/throttle";
+        if (socket == "cancel") return op == "flow/setDelay";
+        return false;
+    }
 
     // Operations with flow sockets: their outputs are internal state.
     bool isFlowOperation(const std::string &op)
@@ -582,7 +593,16 @@ struct InteractivityRuntime::Impl
         s = NodeState{};
         const std::string &op = ops[static_cast<size_t>(node)];
         auto &o = s.outputs;
-        if (op == "flow/for")
+        if (!supported[static_cast<size_t>(node)])
+        {
+            // A no-op's outputs are its declared sockets' type defaults (an int
+            // reads 0, a float NaN).
+            const auto &n = graph->nodes[static_cast<size_t>(node)];
+            for (const auto &[socket, out] : graph->declarations[static_cast<size_t>(n.declaration)].outputValueSockets)
+                if (out.type >= 0 && static_cast<size_t>(out.type) < graph->types.size())
+                    o[socket] = Value::defaultOf(graph->types[static_cast<size_t>(out.type)].signature);
+        }
+        else if (op == "flow/for")
         {
             int32_t initial = 0;
             configInt(node, "initialIndex", initial);
@@ -1218,13 +1238,10 @@ struct InteractivityRuntime::Impl
                 for (int c = 0; c < 3; ++c) b[r][c] = a.f[c * 4 + r] / sc[c];
             const double det = b[0][0] * (b[1][1] * b[2][2] - b[2][1] * b[1][2]) - b[0][1] * (b[1][0] * b[2][2] - b[2][0] * b[1][2]) +
                                b[0][2] * (b[1][0] * b[2][1] - b[2][0] * b[1][1]);
-            if (std::fabs(std::fabs(det) - 1.0) > 1e-3)
-            {
-                // Shear: not decomposable; NaN rotation and scale.
-                out["scale"] = Value::defaultOf(Sig::Float3);
-                out["rotation"] = Value::defaultOf(Sig::Float4);
-                return;
-            }
+            // A sheared matrix has no exact decomposition: as engines do, its
+            // scale is still the columns' lengths and its rotation is taken from
+            // the normalized columns (finite, so composing it again and
+            // decomposing that is stable; the specification's test set expects it).
             if (det < 0)
             {
                 sc[0] = -sc[0];
@@ -1480,7 +1497,18 @@ struct InteractivityRuntime::Impl
             return;
         }
         if (op == "math/atan2") { set(zipFloat(in("a"), in("b"), [](double y, double x) { return std::atan2(y, x); })); return; }
-        if (op == "math/pow") { set(zipFloat(in("a"), in("b"), [](double x, double y) { return std::pow(x, y); })); return; }
+        if (op == "math/pow")
+        {
+            // ECMAScript's Math.pow (the specification's test set follows it), not
+            // C's: x^0 is 1 even for NaN, but 1^NaN and (+-1)^(+-inf) are NaN.
+            set(zipFloat(in("a"), in("b"), [](double x, double y) {
+                if (y == 0.0) return 1.0;
+                if (std::isnan(x) || std::isnan(y) || (std::fabs(x) == 1.0 && std::isinf(y)))
+                    return std::numeric_limits<double>::quiet_NaN();
+                return std::pow(x, y);
+            }));
+            return;
+        }
         if (op == "math/clamp")
         {
             const Value a = in("a"), b = in("b"), c = in("c");
@@ -1584,6 +1612,7 @@ struct InteractivityRuntime::Impl
         if (name == "samplers") return size(asset.samplers);
         if (name == "scenes") return size(asset.scenes);
         if (name == "accessors") return size(asset.accessors);
+        if (name == "extensions/KHR_lights_punctual/lights") return size(asset.khrLightsPunctual);
         return 0;
     }
 
@@ -1747,8 +1776,9 @@ struct InteractivityRuntime::Impl
 
     // The glTF Asset Object Model's read-only structure pointers, answered from
     // the asset: array sizes ("/nodes.length", "/nodes/2/children.length"; 0
-    // for an array that isn't defined) and references ("/nodes/2/mesh",
-    // "/nodes/2/parent", "/scenes/0/nodes/[1]", "/scene"). `handled` says
+    // for an array that isn't defined), references ("/nodes/2/mesh",
+    // "/nodes/2/parent", "/scenes/0/nodes/[1]", "/scene") and
+    // "/materials/2/doubleSided". `handled` says
     // whether the pointer is one of them; the result, whether it resolved (a
     // node without a mesh, a root's parent and indices out of range don't).
     bool structurePointer(const std::string &pointer, Sig sig, Value &v, bool &handled) const
@@ -1784,7 +1814,18 @@ struct InteractivityRuntime::Impl
         // "/<collection>.length", "/extensions/KHR_lights_punctual/lights.length", "/scene".
         if (seg.size() == 1)
         {
-            if (seg[0] == "scene") return ref("scenes", asset.scene);
+            if (seg[0] == "scene")
+            {
+                // The Object Model's type is int (a ref is accepted too).
+                if (sig == Sig::Int)
+                {
+                    handled = true;
+                    if (asset.scene < 0 || asset.scene >= collectionSize("scenes")) return false;
+                    v = Value::ofInt(static_cast<int32_t>(asset.scene));
+                    return true;
+                }
+                return ref("scenes", asset.scene);
+            }
             if (!isLength) return false;
             static const char *const collections[] = {"animations", "cameras", "materials", "meshes", "nodes",
                                                       "scenes", "skins", "textures", "images", "samplers",
@@ -1808,14 +1849,11 @@ struct InteractivityRuntime::Impl
                 if (isLength && array == "children") return known ? length(node->children.size()) : (handled = true, false);
                 if (isLength && array == "weights")
                 {
-                    if (!known) return handled = true, false;
-                    size_t targets = 0;
-                    if (node->mesh >= 0 && asset.meshes && node->mesh < static_cast<int64_t>(asset.meshes->size()))
-                    {
-                        const auto &primitives = (*asset.meshes)[static_cast<size_t>(node->mesh)].primitives;
-                        if (!primitives.empty()) targets = primitives.front().targets.size();
-                    }
-                    return length(targets);
+                    // A node without a mesh has no weights (not even 0 of them).
+                    if (!known || node->mesh < 0 || !asset.meshes || node->mesh >= static_cast<int64_t>(asset.meshes->size()))
+                        return handled = true, false;
+                    const auto &primitives = (*asset.meshes)[static_cast<size_t>(node->mesh)].primitives;
+                    return length(primitives.empty() ? 0 : primitives.front().targets.size());
                 }
                 if (seg[2] == "mesh") return known ? ref("meshes", node->mesh) : (handled = true, false);
                 if (seg[2] == "camera") return known ? ref("cameras", node->camera) : (handled = true, false);
@@ -1847,6 +1885,14 @@ struct InteractivityRuntime::Impl
                 return ref("materials", primitives[static_cast<size_t>(p)].material);
             }
             return false;
+        }
+        // "/materials/2/doubleSided": read-only in the Object Model.
+        if (top == "materials" && i >= 0 && seg.size() == 3 && seg[2] == "doubleSided")
+        {
+            handled = true;
+            if (sig != Sig::Bool || !asset.materials || i >= static_cast<int64_t>(asset.materials->size())) return false;
+            v = Value::ofBool((*asset.materials)[static_cast<size_t>(i)].doubleSided);
+            return true;
         }
         if (top == "scenes" && i >= 0)
         {
@@ -1926,6 +1972,32 @@ struct InteractivityRuntime::Impl
         bool handled = false;
         const bool found = structurePointer(pointer, sig, v, handled);
         if (handled) return found;
+        // Asset capabilities: the asset's version and the extensions it uses
+        // that are implemented (others aren't valid pointers).
+        if (pointer.rfind("/extensions/KHR_interactivity/asset/", 0) == 0)
+        {
+            const std::string name = pointer.substr(36);
+            if (name == "majorVersion" || name == "minorVersion")
+            {
+                if (sig != Sig::Int) return false;
+                v = Value::ofInt(name == "majorVersion" ? asset.majorVersion : asset.minorVersion);
+                return true;
+            }
+            const std::string pre = "extensions/", post = "/enabled";
+            if (name.size() > pre.size() + post.size() && name.rfind(pre, 0) == 0 &&
+                name.compare(name.size() - post.size(), post.size(), post) == 0)
+            {
+                const std::string extension = name.substr(pre.size(), name.size() - pre.size() - post.size());
+                const auto &used = asset.extensionsUsed;
+                const auto &known = GLTF::implementedExtensions;
+                if (sig != Sig::Bool || std::find(used.begin(), used.end(), extension) == used.end() ||
+                    std::find(known.begin(), known.end(), extension) == known.end())
+                    return false;
+                v = Value::ofBool(true);
+                return true;
+            }
+            return false;
+        }
         // Implementation limits.
         if (pointer.rfind("/extensions/KHR_interactivity/limits/", 0) == 0)
         {
@@ -2002,7 +2074,13 @@ struct InteractivityRuntime::Impl
             // Pure nodes' outputs are kept until a flow node runs.
             ++generation;
             nextNode = -1;
-            if (supported[static_cast<size_t>(node)]) run(node, socket);
+            // A flow into a socket the operation doesn't have does nothing.
+            if (supported[static_cast<size_t>(node)] && hasInputFlow(ops[static_cast<size_t>(node)], socket))
+                run(node, socket);
+            // ... and what it read before changing state (variable/set reads the
+            // variable it then writes) is stale after it: a loop's condition,
+            // read next, must see the new value.
+            ++generation;
             node = nextNode;
             socket = nextSocket;
             nextNode = -1;
@@ -2367,12 +2445,17 @@ struct InteractivityRuntime::Impl
         depth = 0;
         currentEvent = event;
         stopImmediate = false;
+        // Every handler of the occurrence shows it before any runs: one handler
+        // may read another's outputs (two event/onStart nodes, the same event ref).
+        for (const int64_t h : handlers)
+        {
+            setOutputs(h);
+            state[static_cast<size_t>(h)].outputs["event"] = Value::ofRef(event);
+        }
         for (const int64_t h : handlers)
         {
             if (stopImmediate) break;
-            setOutputs(h);
             ++eventCounts[ops[static_cast<size_t>(h)]];
-            state[static_cast<size_t>(h)].outputs["event"] = Value::ofRef(event);
             activate(h, "in");
         }
         return true;

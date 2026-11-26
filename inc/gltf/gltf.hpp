@@ -12,6 +12,7 @@
 #include <future>
 #include <functional>
 #include <memory>
+#include <string>
 #include <vector>
 #include <array>
 #include <unordered_set>
@@ -82,6 +83,13 @@ namespace systems::leal::gltf
          * -1 if no thumbnail is declared.
          */
         int64_t thumbnail = -1;
+
+        /// asset.version: "2.0" is 2 and 0.
+        int majorVersion = 2;
+        int minorVersion = 0;
+        /// The extensions the asset uses and requires, as it lists them.
+        std::vector<std::string> extensionsUsed;
+        std::vector<std::string> extensionsRequired;
 
         // Ratified Khronos extensions.
         std::shared_ptr<std::vector<KHRLightPunctual>> khrLightsPunctual;
