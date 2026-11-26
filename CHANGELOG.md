@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-26
+
 ### Added
 - **`GLTF::majorVersion`, `minorVersion`, `extensionsUsed` and `extensionsRequired`**: the asset's `asset.version` and its extension lists, as it declares them.
 - **KHR_interactivity runtime: more read-only pointers answered from the asset.** The asset capabilities (`/extensions/KHR_interactivity/asset/majorVersion` and `minorVersion`, and `/extensions/KHR_interactivity/asset/extensions/<name>/enabled`, valid for an extension the asset uses and the library implements), `/materials/N/doubleSided`, and `/scene` read as an int (the Object Model's type; a ref still works).
